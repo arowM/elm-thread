@@ -22,76 +22,6 @@ main =
         }
 
 
-{-| The memory state shared by all threads.
--}
-type alias Shared =
-    { log : String
-    , page : PageView
-    }
-
-
-init : Shared
-init =
-    { log = ""
-    , page = PageLoading
-    }
-
-
-{-| Global events
--}
-type Global
-    = ReceiveTick Posix
-    | ClickActionButton
-
-
-{-| Local events that only affect a specific thread.
--}
-type Local
-    = ReceiveInitialTime ( Time.Zone, Posix )
-    | WakeUp
-
-
-
--- View
-
-
-type PageView
-    = PageLoading
-    | PageHome PageHome_
-
-
-view : Shared -> Document Global
-view shared =
-    case shared.page of
-        PageLoading ->
-            pageLoading
-
-        PageHome home ->
-            pageHome shared.log home
-
-
-pageLoading = Debug.todo "See `sample/src/Main.elm`"
-
-
-type alias PageHome_ =
-    { time : Posix
-    , zone : Time.Zone
-    , showActionButton : Bool
-    }
-
-
-pageHome = Debug.todo "See `sample/src/Main.elm`"
-
-
--- Subsctiption
-
-
-subscriptions : Shared -> Sub Global
-subscriptions _ =
-    Time.every 1000 ReceiveTick
-
-
-
 -- Procedure
 
 
@@ -178,6 +108,79 @@ sleepProcedure2 =
         , sleep 10000
         , putLog "Slept 10 sec."
         ]
+
+
+
+-- Core
+
+
+{-| The memory state shared by all threads.
+-}
+type alias Shared =
+    { log : String
+    , page : PageView
+    }
+
+
+init : Shared
+init =
+    { log = ""
+    , page = PageLoading
+    }
+
+
+{-| Global events
+-}
+type Global
+    = ReceiveTick Posix
+    | ClickActionButton
+
+
+{-| Local events that only affect a specific thread.
+-}
+type Local
+    = ReceiveInitialTime ( Time.Zone, Posix )
+    | WakeUp
+
+
+
+-- View
+
+
+type PageView
+    = PageLoading
+    | PageHome PageHome_
+
+
+view : Shared -> Document Global
+view shared =
+    case shared.page of
+        PageLoading ->
+            pageLoading
+
+        PageHome home ->
+            pageHome shared.log home
+
+
+pageLoading = Debug.todo "See `sample/src/Main.elm`"
+
+
+type alias PageHome_ =
+    { time : Posix
+    , zone : Time.Zone
+    , showActionButton : Bool
+    }
+
+
+pageHome = Debug.todo "See `sample/src/Main.elm`"
+
+
+-- Subsctiption
+
+
+subscriptions : Shared -> Sub Global
+subscriptions _ =
+    Time.every 1000 ReceiveTick
 ```
 
 # For developers
