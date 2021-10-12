@@ -109,7 +109,7 @@ procedure () =
             , sleepProcedure2
             ]
 
-        , putLog "All child threads has completed."
+        , putLog "All child threads have completed."
         , Procedure.quit
         , putLog "(Unreachable)"
         ]
