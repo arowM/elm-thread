@@ -1,7 +1,7 @@
 {
     "type": "package",
     "name": "arowM/elm-thread",
-    "summary": " ",
+    "summary": "Translate chronological specifications verbatim into applications.",
     "license": "MIT",
     "version": "1.0.1",
     "exposed-modules": [

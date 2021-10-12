@@ -6,7 +6,17 @@
 
 ![logo](https://user-images.githubusercontent.com/1481749/115139779-de382400-a06e-11eb-80e7-22af97774bfa.jpg)
 
-Enables TEA to describe application procedures as it is.
+Extend TEA so that chronological specifications can be translated verbatim into applications.
+
+# What is this for?
+
+With elm-thread, you can translate _verbatim_ the specification of a UX-aware application into an implementation with the same look and feel.
+
+In a UX-aware application, it is natural to write the specification in chronological order.
+This is because application users make decisions about what to do next, based on their experience of their previous operations and the application's response to those operations.
+However, conventional TEA is not suitable for implementing such specifications: Every time the user interacts with the screen, you have to check the model in the `update` function and try hard to analyze "what time series did the user follow" to choose the next process. A lot of bugs are introduced in this kind of transformation work. The bad news is that these bugs are about the behaviour of the application, so you have to suffer through complex and difficult UI testing.
+
+With elm-thread, you can solve such drawbacks of TEA. As shown in the following example, it is possible to implement time series processing as it looks. What a magical library!
 
 # A Quick Example
 
@@ -38,7 +48,21 @@ procedure : () -> Procedure
 procedure () =
     Procedure.batch
         [ sleep 3000
+
+-- Hey, you know?
+-- In the conventional TEA, every time you do a sleep operation,
+-- you're sent to another branch of `update` function,
+-- where you have to check your model to know "Where did I come from?".
+-- What an annoying process!
+
+-- With elm-thread, you just put the subsequent procedure right below it.
+
         , requestInitialTime
+
+-- How intuitive to be able to write the result of the above request right underneath it!
+-- Can I say one more amazing thing?
+-- The result of the above request can only be received in this thread and has no effect on any other thread.
+
         , Procedure.await <|
             \local _ ->
                 case local of
@@ -54,7 +78,14 @@ procedure () =
                     _ ->
                         Nothing
         , putLog "Forking thread for clock..."
+
+-- You can, of course, start and run another procedure as a thread independent of this one.
+
         , Procedure.fork <| \_ -> clockProcedure
+
+-- The above procedure is running as an independent thread,
+-- so the following procedures will run in parallel without waiting for them to finish.
+
         , modifyPageHome <| \home -> { home | showActionButton = True }
         , putLog """Press "Action" button bellow."""
         , Procedure.awaitGlobal <|
@@ -69,10 +100,15 @@ procedure () =
 
                     _ ->
                         Nothing
+
+-- Sometimes you want to synchronise your processes, don't you?
+-- Use `syncAll` to make sure that all procedures are completed before moving on to the subsequent procedures.
+
         , Procedure.syncAll
             [ sleepProcedure1
             , sleepProcedure2
             ]
+
         , putLog "All child threads has completed."
         , Procedure.quit
         , putLog "(Unreachable)"
@@ -186,38 +222,4 @@ pageHome = Debug.todo "See `sample/src/Main.elm`"
 subscriptions : Shared -> Sub Global
 subscriptions _ =
     Time.every 1000 ReceiveTick
-```
-
-# For developers
-
-Check the `dev` directory for testing internal modules.
-
-## Install deps
-
-```sh
-$ npm i
-```
-
-## Format files
-
-```sh
-$ npm run format
-```
-
-## Run doc server
-
-```sh
-$ npm run start
-```
-
-## Build sample app
-
-```sh
-$ npm run build:sample
-```
-
-## Test
-
-```sh
-$ npm test
 ```
