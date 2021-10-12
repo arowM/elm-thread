@@ -5241,32 +5241,32 @@ var $elm$core$Task$perform = F2(
 				A2($elm$core$Task$map, toMessage, task)));
 	});
 var $elm$browser$Browser$document = _Browser_document;
-var $author$project$Threads$Msg = function (a) {
+var $author$project$Thread$Procedure$Msg = function (a) {
 	return {$: 'Msg', a: a};
 };
 var $author$project$Internal$GlobalEvent = function (a) {
 	return {$: 'GlobalEvent', a: a};
 };
 var $author$project$Internal$globalEvent = $author$project$Internal$GlobalEvent;
-var $author$project$Threads$globalEvent = function (global) {
-	return $author$project$Threads$Msg(
+var $author$project$Thread$Procedure$globalEvent = function (global) {
+	return $author$project$Thread$Procedure$Msg(
 		$author$project$Internal$globalEvent(global));
 };
 var $elm$virtual_dom$VirtualDom$map = _VirtualDom_map;
 var $elm$html$Html$map = $elm$virtual_dom$VirtualDom$map;
-var $author$project$Threads$documentView = F2(
+var $author$project$Thread$Procedure$documentView = F2(
 	function (f, _v0) {
 		var model = _v0.a;
 		var doc = f(model.state.shared);
 		return {
 			body: A2(
 				$elm$core$List$map,
-				$elm$html$Html$map($author$project$Threads$globalEvent),
+				$elm$html$Html$map($author$project$Thread$Procedure$globalEvent),
 				doc.body),
 			title: doc.title
 		};
 	});
-var $author$project$Threads$Model = function (a) {
+var $author$project$Thread$Procedure$Model = function (a) {
 	return {$: 'Model', a: a};
 };
 var $elm$core$Platform$Cmd$batch = _Platform_batch;
@@ -5281,7 +5281,7 @@ var $author$project$Internal$ThreadEvent = F2(
 		return {$: 'ThreadEvent', a: a, b: b};
 	});
 var $author$project$Internal$threadEvent = $author$project$Internal$ThreadEvent;
-var $author$project$Threads$batchLocalCmds = function (cmds) {
+var $author$project$Thread$Procedure$batchLocalCmds = function (cmds) {
 	return $elm$core$Platform$Cmd$batch(
 		A2(
 			$elm$core$List$map,
@@ -5292,7 +5292,7 @@ var $author$project$Threads$batchLocalCmds = function (cmds) {
 					$elm$core$Platform$Cmd$map,
 					A2(
 						$elm$core$Basics$composeL,
-						$author$project$Threads$Msg,
+						$author$project$Thread$Procedure$Msg,
 						$author$project$Internal$threadEvent(tid)),
 					cmd);
 			},
@@ -5565,24 +5565,24 @@ var $author$project$Internal$initialState = function (shared) {
 		shared: shared
 	};
 };
-var $author$project$Threads$init = F2(
+var $author$project$Thread$Procedure$init = F2(
 	function (shared, _v0) {
 		var proc = _v0.a;
 		var thread = $author$project$Internal$fromProcedure(proc);
 		var initialState = $author$project$Internal$initialState(shared);
 		var cued = A2($author$project$Internal$cue, initialState, thread);
 		return _Utils_Tuple2(
-			$author$project$Threads$Model(
+			$author$project$Thread$Procedure$Model(
 				{state: cued.newState, thread: cued.next}),
-			$author$project$Threads$batchLocalCmds(cued.cmds));
+			$author$project$Thread$Procedure$batchLocalCmds(cued.cmds));
 	});
 var $elm$core$Platform$Sub$map = _Platform_map;
-var $author$project$Threads$subscriptions = F2(
+var $author$project$Thread$Procedure$subscriptions = F2(
 	function (f, _v0) {
 		var model = _v0.a;
 		return A2(
 			$elm$core$Platform$Sub$map,
-			$author$project$Threads$globalEvent,
+			$author$project$Thread$Procedure$globalEvent,
 			f(model.state.shared));
 	});
 var $author$project$Internal$runWithMsg = F3(
@@ -5612,28 +5612,28 @@ var $author$project$Internal$runWithMsg = F3(
 					});
 		}
 	});
-var $author$project$Threads$update = F2(
+var $author$project$Thread$Procedure$update = F2(
 	function (_v0, _v1) {
 		var msg = _v0.a;
 		var model = _v1.a;
 		var res = A3($author$project$Internal$runWithMsg, msg, model.state, model.thread);
 		return _Utils_Tuple2(
-			$author$project$Threads$Model(
+			$author$project$Thread$Procedure$Model(
 				{state: res.newState, thread: res.next}),
-			$author$project$Threads$batchLocalCmds(res.cmds));
+			$author$project$Thread$Procedure$batchLocalCmds(res.cmds));
 	});
-var $author$project$Threads$document = function (option) {
+var $author$project$Thread$Browser$document = function (option) {
 	return $elm$browser$Browser$document(
 		{
 			init: function (flags) {
 				return A2(
-					$author$project$Threads$init,
+					$author$project$Thread$Procedure$init,
 					option.init,
 					option.procedure(flags));
 			},
-			subscriptions: $author$project$Threads$subscriptions(option.subscriptions),
-			update: $author$project$Threads$update,
-			view: $author$project$Threads$documentView(option.view)
+			subscriptions: $author$project$Thread$Procedure$subscriptions(option.subscriptions),
+			update: $author$project$Thread$Procedure$update,
+			view: $author$project$Thread$Procedure$documentView(option.view)
 		});
 };
 var $author$project$Main$PageLoading = {$: 'PageLoading'};
@@ -5641,7 +5641,7 @@ var $author$project$Main$init = {log: '', page: $author$project$Main$PageLoading
 var $author$project$Main$PageHome = function (a) {
 	return {$: 'PageHome', a: a};
 };
-var $author$project$Threads$Procedure = function (a) {
+var $author$project$Thread$Procedure$Procedure = function (a) {
 	return {$: 'Procedure', a: a};
 };
 var $author$project$Internal$Await = function (a) {
@@ -5677,8 +5677,8 @@ var $elm$core$Maybe$map = F2(
 			return $elm$core$Maybe$Nothing;
 		}
 	});
-var $author$project$Threads$await = function (f) {
-	return $author$project$Threads$Procedure(
+var $author$project$Thread$Procedure$await = function (f) {
+	return $author$project$Thread$Procedure$Procedure(
 		$author$project$Internal$await(
 			F2(
 				function (local, shared) {
@@ -5707,8 +5707,8 @@ var $author$project$Internal$awaitGlobal = function (f) {
 					}))
 			]));
 };
-var $author$project$Threads$awaitGlobal = function (f) {
-	return $author$project$Threads$Procedure(
+var $author$project$Thread$Procedure$awaitGlobal = function (f) {
+	return $author$project$Thread$Procedure$Procedure(
 		$author$project$Internal$awaitGlobal(
 			F2(
 				function (global, shared) {
@@ -5747,8 +5747,8 @@ var $author$project$Internal$batch = function (procs) {
 			},
 			procs));
 };
-var $author$project$Threads$batch = function (procs) {
-	return $author$project$Threads$Procedure(
+var $author$project$Thread$Procedure$batch = function (procs) {
+	return $author$project$Thread$Procedure$Procedure(
 		$author$project$Internal$batch(
 			A2(
 				$elm$core$List$map,
@@ -5775,8 +5775,8 @@ var $author$project$Internal$fork = function (f) {
 				})
 			]));
 };
-var $author$project$Threads$fork = function (f) {
-	return $author$project$Threads$Procedure(
+var $author$project$Thread$Procedure$fork = function (f) {
+	return $author$project$Thread$Procedure$Procedure(
 		$author$project$Internal$fork(
 			function (a) {
 				return function (_v0) {
@@ -5801,12 +5801,12 @@ var $author$project$Internal$modify = function (f) {
 				})
 			]));
 };
-var $author$project$Threads$modify = function (f) {
-	return $author$project$Threads$Procedure(
+var $author$project$Thread$Procedure$modify = function (f) {
+	return $author$project$Thread$Procedure$Procedure(
 		$author$project$Internal$modify(f));
 };
 var $author$project$Main$modifyPageHome = function (f) {
-	return $author$project$Threads$modify(
+	return $author$project$Thread$Procedure$modify(
 		function (shared) {
 			var _v0 = shared.page;
 			if (_v0.$ === 'PageHome') {
@@ -5823,10 +5823,10 @@ var $author$project$Main$modifyPageHome = function (f) {
 		});
 };
 function $author$project$Main$cyclic$clockProcedure() {
-	return $author$project$Threads$batch(
+	return $author$project$Thread$Procedure$batch(
 		_List_fromArray(
 			[
-				$author$project$Threads$awaitGlobal(
+				$author$project$Thread$Procedure$awaitGlobal(
 				F2(
 					function (global, _v0) {
 						if (global.$ === 'ReceiveTick') {
@@ -5842,7 +5842,7 @@ function $author$project$Main$cyclic$clockProcedure() {
 							return $elm$core$Maybe$Nothing;
 						}
 					})),
-				$author$project$Threads$fork(
+				$author$project$Thread$Procedure$fork(
 				function (_v2) {
 					return $author$project$Main$cyclic$clockProcedure();
 				})
@@ -5856,7 +5856,7 @@ try {
 } catch ($) {
 	throw 'Some top-level definitions from `Main` are causing infinite recursion:\n\n  ┌─────┐\n  │    clockProcedure\n  └─────┘\n\nThese errors are very tricky, so read https://elm-lang.org/0.19.1/bad-recursion to learn how to fix it!';}
 var $author$project$Main$putLog = function (log) {
-	return $author$project$Threads$modify(
+	return $author$project$Thread$Procedure$modify(
 		function (shared) {
 			return _Utils_update(
 				shared,
@@ -5867,7 +5867,7 @@ var $author$project$Internal$Quit = {$: 'Quit'};
 var $author$project$Internal$quit = $author$project$Internal$Procedure(
 	_List_fromArray(
 		[$author$project$Internal$Quit]));
-var $author$project$Threads$quit = $author$project$Threads$Procedure($author$project$Internal$quit);
+var $author$project$Thread$Procedure$quit = $author$project$Thread$Procedure$Procedure($author$project$Internal$quit);
 var $author$project$Main$ReceiveInitialTime = function (a) {
 	return {$: 'ReceiveInitialTime', a: a};
 };
@@ -5909,12 +5909,12 @@ var $elm$core$List$singleton = function (value) {
 	return _List_fromArray(
 		[value]);
 };
-var $author$project$Threads$push = function (f) {
-	return $author$project$Threads$Procedure(
+var $author$project$Thread$Procedure$push = function (f) {
+	return $author$project$Thread$Procedure$Procedure(
 		$author$project$Internal$push(
 			A2($elm$core$Basics$composeR, f, $elm$core$List$singleton)));
 };
-var $author$project$Main$requestInitialTime = $author$project$Threads$push(
+var $author$project$Main$requestInitialTime = $author$project$Thread$Procedure$push(
 	function (_v0) {
 		return A2(
 			$elm$core$Task$perform,
@@ -5929,7 +5929,7 @@ var $author$project$Main$requestInitialTime = $author$project$Threads$push(
 				$elm$time$Time$now));
 	});
 var $author$project$Main$setPageView = function (page) {
-	return $author$project$Threads$modify(
+	return $author$project$Thread$Procedure$modify(
 		function (shared) {
 			return _Utils_update(
 				shared,
@@ -5938,13 +5938,13 @@ var $author$project$Main$setPageView = function (page) {
 };
 var $author$project$Main$WakeUp = {$: 'WakeUp'};
 var $author$project$Internal$none = $author$project$Internal$Procedure(_List_Nil);
-var $author$project$Threads$none = $author$project$Threads$Procedure($author$project$Internal$none);
+var $author$project$Thread$Procedure$none = $author$project$Thread$Procedure$Procedure($author$project$Internal$none);
 var $elm$core$Process$sleep = _Process_sleep;
 var $author$project$Main$sleep = function (msec) {
-	return $author$project$Threads$batch(
+	return $author$project$Thread$Procedure$batch(
 		_List_fromArray(
 			[
-				$author$project$Threads$push(
+				$author$project$Thread$Procedure$push(
 				function (_v0) {
 					return A2(
 						$elm$core$Task$perform,
@@ -5953,25 +5953,25 @@ var $author$project$Main$sleep = function (msec) {
 						},
 						$elm$core$Process$sleep(msec));
 				}),
-				$author$project$Threads$await(
+				$author$project$Thread$Procedure$await(
 				F2(
 					function (local, _v2) {
 						if (local.$ === 'WakeUp') {
-							return $elm$core$Maybe$Just($author$project$Threads$none);
+							return $elm$core$Maybe$Just($author$project$Thread$Procedure$none);
 						} else {
 							return $elm$core$Maybe$Nothing;
 						}
 					}))
 			]));
 };
-var $author$project$Main$sleepProcedure1 = $author$project$Threads$batch(
+var $author$project$Main$sleepProcedure1 = $author$project$Thread$Procedure$batch(
 	_List_fromArray(
 		[
 			$author$project$Main$putLog('Sleep 5 sec.'),
 			$author$project$Main$sleep(5000),
 			$author$project$Main$putLog('Slept 5 sec.')
 		]));
-var $author$project$Main$sleepProcedure2 = $author$project$Threads$batch(
+var $author$project$Main$sleepProcedure2 = $author$project$Thread$Procedure$batch(
 	_List_fromArray(
 		[
 			$author$project$Main$putLog('Sleep 10 sec.'),
@@ -5995,8 +5995,8 @@ var $author$project$Internal$syncAll = function (procs) {
 					procs))
 			]));
 };
-var $author$project$Threads$syncAll = function (procs) {
-	return $author$project$Threads$Procedure(
+var $author$project$Thread$Procedure$syncAll = function (procs) {
+	return $author$project$Thread$Procedure$Procedure(
 		$author$project$Internal$syncAll(
 			A2(
 				$elm$core$List$map,
@@ -6007,12 +6007,12 @@ var $author$project$Threads$syncAll = function (procs) {
 				procs)));
 };
 var $author$project$Main$procedure = function (_v0) {
-	return $author$project$Threads$batch(
+	return $author$project$Thread$Procedure$batch(
 		_List_fromArray(
 			[
 				$author$project$Main$sleep(3000),
 				$author$project$Main$requestInitialTime,
-				$author$project$Threads$await(
+				$author$project$Thread$Procedure$await(
 				F2(
 					function (local, _v1) {
 						if (local.$ === 'ReceiveInitialTime') {
@@ -6028,7 +6028,7 @@ var $author$project$Main$procedure = function (_v0) {
 						}
 					})),
 				$author$project$Main$putLog('Forking thread for clock...'),
-				$author$project$Threads$fork(
+				$author$project$Thread$Procedure$fork(
 				function (_v4) {
 					return $author$project$Main$clockProcedure;
 				}),
@@ -6039,12 +6039,12 @@ var $author$project$Main$procedure = function (_v0) {
 						{showActionButton: true});
 				}),
 				$author$project$Main$putLog('Press "Action" button bellow.'),
-				$author$project$Threads$awaitGlobal(
+				$author$project$Thread$Procedure$awaitGlobal(
 				F2(
 					function (global, _v5) {
 						if (global.$ === 'ClickActionButton') {
 							return $elm$core$Maybe$Just(
-								$author$project$Threads$batch(
+								$author$project$Thread$Procedure$batch(
 									_List_fromArray(
 										[
 											$author$project$Main$modifyPageHome(
@@ -6059,11 +6059,11 @@ var $author$project$Main$procedure = function (_v0) {
 							return $elm$core$Maybe$Nothing;
 						}
 					})),
-				$author$project$Threads$syncAll(
+				$author$project$Thread$Procedure$syncAll(
 				_List_fromArray(
 					[$author$project$Main$sleepProcedure1, $author$project$Main$sleepProcedure2])),
 				$author$project$Main$putLog('All child threads has completed.'),
-				$author$project$Threads$quit,
+				$author$project$Thread$Procedure$quit,
 				$author$project$Main$putLog('(Unreachable)')
 			]));
 };
@@ -6740,7 +6740,7 @@ var $author$project$Main$view = function (shared) {
 		return A2($author$project$Main$pageHome, shared.log, home);
 	}
 };
-var $author$project$Main$main = $author$project$Threads$document(
+var $author$project$Main$main = $author$project$Thread$Browser$document(
 	{init: $author$project$Main$init, procedure: $author$project$Main$procedure, subscriptions: $author$project$Main$subscriptions, view: $author$project$Main$view});
 _Platform_export({'Main':{'init':$author$project$Main$main(
 	$elm$json$Json$Decode$succeed(_Utils_Tuple0))(0)}});}(this));
