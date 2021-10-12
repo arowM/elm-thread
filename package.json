@@ -1,0 +1,26 @@
+{
+  "private": true,
+  "scripts": {
+    "format": "elm-format src dev/tests sample/src",
+    "start": "elm-doc-preview",
+    "start:dev": "cd dev && elm-doc-preview",
+    "build:sample": "rimraf docs/ && cd sample && elm make src/Main.elm --output=../docs/index.html",
+    "review": "elm-review --fix",
+    "review:dev": "cd dev && elm-review --fix",
+    "review:sample": "cd sample && elm-review --fix",
+    "test": "npm run test:pub && npm run test:dev && npm run test:sample",
+    "test:pub": "elm-review && elm-format --validate src && elm make --docs=/tmp/docs.json",
+    "test:dev": "cd dev && elm-review && elm-test && elm-format --validate src && elm make --docs=/tmp/docs.json",
+    "test:sample": "cd sample && elm-review && elm-format --validate src && elm make src/Main.elm --output=/tmp/index.html"
+  },
+  "devDependencies": {
+    "elm-doc-preview": "^5.0.3",
+    "elm-format": "^0.8.3",
+    "elm-test": "^0.19.1"
+  },
+  "dependencies": {
+    "elm": "^0.19.1-5",
+    "elm-review": "^2.5.1",
+    "rimraf": "^2.7.1"
+  }
+}
