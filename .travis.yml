@@ -1,7 +1,7 @@
 sudo: false # force container-based infrastructure
 language: node_js
 node_js:
-  - "10.3"
+  - "15.7"
 install:
   - npm install
 script:
