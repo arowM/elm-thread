@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.com/arowM/elm-thread.svg?branch=main)](https://travis-ci.com/arowM/elm-thread)  
 [Document](https://package.elm-lang.org/packages/arowM/elm-thread/latest/)  
-[Live demo](https://arowM.github.io/elm-thread/index.html)  
+[Live demo](https://arowm.github.io/elm-thread/)  
 
 Enables TEA to describe procedures as it is.
 
