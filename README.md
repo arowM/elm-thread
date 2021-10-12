@@ -4,7 +4,9 @@
 [Document](https://package.elm-lang.org/packages/arowM/elm-thread/latest/)  
 [Live demo](https://arowm.github.io/elm-thread/)  
 
-Enables TEA to describe procedures as it is.
+![logo](https://user-images.githubusercontent.com/1481749/115139779-de382400-a06e-11eb-80e7-22af97774bfa.jpg)
+
+Enables TEA to describe application procedures as it is.
 
 # A Quick Example
 
