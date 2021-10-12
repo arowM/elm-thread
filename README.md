@@ -14,9 +14,12 @@ The following code is an excerpt from `sample/src/Main.elm`.
 
 
 ```elm
+import Thread.Browser as Browser exposing (Document, Program)
+import Thread.Procedure as Procedure
+
 main : Program () Shared Global Local
 main =
-    document
+    Browser.document
         { init = init
         , procedure = procedure
         , view = view
