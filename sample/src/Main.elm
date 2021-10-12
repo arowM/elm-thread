@@ -5,13 +5,14 @@ import Html.Attributes as Attributes exposing (style)
 import Html.Events as Events
 import Process
 import Task
-import Threads as Procedure exposing (Document, Program, document)
+import Thread.Browser as Browser exposing (Document, Program)
+import Thread.Procedure as Procedure
 import Time exposing (Posix)
 
 
 main : Program () Shared Global Local
 main =
-    document
+    Browser.document
         { init = init
         , procedure = procedure
         , view = view
