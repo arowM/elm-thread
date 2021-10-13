@@ -10,7 +10,7 @@ module Thread.Browser exposing
 
 {-| [Browser](https://package.elm-lang.org/packages/elm/browser/latest/Browser) alternatives.
 
-If your needs cannot be met by this module, use the low level functions of `Thread.Procedure`.
+If your needs cannot be met by this module, use the low level functions of [`Thread.Procedure`](https://package.elm-lang.org/packages/arowM/elm-thread/latest/Thread-Procedure).
 
 @docs element
 @docs document

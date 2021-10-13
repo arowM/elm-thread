@@ -1,7 +1,7 @@
 module InternalSuite exposing (suite)
 
 import Expect
-import Internal exposing (Procedure)
+import Internal exposing (Lifter, Procedure)
 import Internal.ThreadId as ThreadId
 import Test exposing (Test, describe, test)
 
@@ -9,11 +9,26 @@ import Test exposing (Test, describe, test)
 suite : Test
 suite =
     let
+        sampleProcedure_ : Procedure ParentLocalCmd ParentShared ParentGlobal ParentLocal
+        sampleProcedure_ =
+            Internal.batch
+                [ Internal.push <| \_ -> [ C Cmd3 ]
+                , Internal.push <| \_ -> [ OtherLocalCmd ]
+                , sampleProcedure
+                    |> Internal.liftShared sharedLifter
+                    |> Internal.liftLocal mgetLocal
+                    |> Internal.liftGlobal mgetGlobal
+                    |> Internal.mapLocalCmd C
+                ]
+
         thread =
-            Internal.fromProcedure sampleProcedure
+            Internal.fromProcedure sampleProcedure_
 
         initialState =
-            Internal.initialState ""
+            Internal.initialState
+                { child = ""
+                , other = ()
+                }
 
         cued =
             Internal.cue initialState thread
@@ -41,110 +56,132 @@ suite =
 
         receiveThreadEvent =
             Internal.runWithMsg
-                (Internal.threadEvent mainThreadId (Local1 "hi"))
+                (Internal.threadEvent mainThreadId (L <| Local1 "hi"))
+                cued.newState
+                cued.next
+
+        ignoreOtherLocalEvent =
+            Internal.runWithMsg
+                (Internal.threadEvent mainThreadId OtherLocal)
                 cued.newState
                 cued.next
 
         ignoreAnotherThreadEvent =
             Internal.runWithMsg
-                (Internal.threadEvent (ThreadId.inc mainThreadId) (Local1 "hi"))
+                (Internal.threadEvent (ThreadId.inc mainThreadId) (L <| Local1 "hi"))
                 cued.newState
                 cued.next
 
         ignoreGlobalEvent =
             Internal.runWithMsg
-                (Internal.globalEvent (Global1 "HI"))
+                (Internal.globalEvent (G <| Global1 "HI"))
                 cued.newState
                 cued.next
 
         receiveGlobalEvent =
             Internal.runWithMsg
-                (Internal.globalEvent (Global1 "HI"))
+                (Internal.globalEvent (G <| Global1 "HI"))
                 receiveThreadEvent.newState
                 receiveThreadEvent.next
 
         receiveAnotherGlobalEvent =
             Internal.runWithMsg
-                (Internal.globalEvent Global3)
+                (Internal.globalEvent <| G Global3)
+                receiveThreadEvent.newState
+                receiveThreadEvent.next
+
+        ignoreOtherGlobalEvent =
+            Internal.runWithMsg
+                (Internal.globalEvent OtherGlobal)
                 receiveThreadEvent.newState
                 receiveThreadEvent.next
 
         cleanup =
             Internal.runWithMsg
-                (Internal.globalEvent Global3)
+                (Internal.globalEvent <| G Global3)
                 receiveGlobalEvent.newState
                 receiveGlobalEvent.next
 
         receiveForkedThreadEvent =
             Internal.runWithMsg
-                (Internal.threadEvent forkedThreadId (Local2 10))
+                (Internal.threadEvent forkedThreadId (L <| Local2 10))
                 cleanup.newState
                 cleanup.next
 
         receiveMainThreadEvent =
             Internal.runWithMsg
-                (Internal.threadEvent mainThreadId (Local2 20))
+                (Internal.threadEvent mainThreadId (L <| Local2 20))
                 cleanup.newState
                 cleanup.next
 
         receiveGlobalEventOnForkedThread =
             Internal.runWithMsg
-                (Internal.globalEvent (Global1 "FOO"))
+                (Internal.globalEvent (G <| Global1 "FOO"))
                 receiveForkedThreadEvent.newState
                 receiveForkedThreadEvent.next
 
         receiveBothThreadEvent =
             Internal.runWithMsg
-                (Internal.threadEvent forkedThreadId (Local2 10))
+                (Internal.threadEvent forkedThreadId (L <| Local2 10))
                 receiveMainThreadEvent.newState
                 receiveMainThreadEvent.next
 
         receiveGlobalEventOnBothThread =
             Internal.runWithMsg
-                (Internal.globalEvent (Global1 "FOO"))
+                (Internal.globalEvent (G <| Global1 "FOO"))
                 receiveBothThreadEvent.newState
                 receiveBothThreadEvent.next
 
         forkInFork =
             Internal.runWithMsg
-                (Internal.globalEvent Global3)
+                (Internal.globalEvent <| G Global3)
                 receiveGlobalEventOnBothThread.newState
                 receiveGlobalEventOnBothThread.next
 
         globalToAllThread =
             Internal.runWithMsg
-                (Internal.globalEvent Global3)
+                (Internal.globalEvent <| G Global3)
                 forkInFork.newState
                 forkInFork.next
 
         syncThreads =
             Internal.runWithMsg
-                (Internal.globalEvent Global3)
+                (Internal.globalEvent <| G Global3)
                 globalToAllThread.newState
                 globalToAllThread.next
 
         globalToSyncedThreads =
             Internal.runWithMsg
-                (Internal.globalEvent Global3)
+                (Internal.globalEvent <| G Global3)
                 syncThreads.newState
                 syncThreads.next
 
         globalToLeftThread =
             Internal.runWithMsg
-                (Internal.globalEvent (Global1 "left"))
+                (Internal.globalEvent (G <| Global1 "left"))
                 globalToSyncedThreads.newState
                 globalToSyncedThreads.next
     in
     describe "Test thread behaviour"
-        [ test "cued" <|
+        [ test "A hack to avoid elm-review warnings" <|
+            \_ ->
+                Expect.true "true"
+                    (case C Cmd3 of
+                        C Cmd3 ->
+                            True
+
+                        _ ->
+                            False
+                    )
+        , test "cued" <|
             \_ ->
                 Expect.equal
                     { cmds = cued.cmds
                     , newState = cued.newState
                     }
-                    { cmds = [ ( mainThreadId, Cmd1 ), ( mainThreadId, Cmd2 ) ]
+                    { cmds = [ ( mainThreadId, C Cmd3 ), ( mainThreadId, OtherLocalCmd ), ( mainThreadId, C Cmd1 ), ( mainThreadId, C Cmd2 ) ]
                     , newState =
-                        { shared = """Start a thread
+                        { shared = toParent """Start a thread
 Cmd1 has pushed
 """
                         , nextThreadId = forkedThreadId
@@ -158,7 +195,21 @@ Cmd1 has pushed
                     }
                     { cmds = []
                     , newState =
-                        { shared = """Received Local1 message: hi
+                        { shared = toParent """Received Local1 message: hi
+"""
+                        , nextThreadId = forkedThreadId
+                        }
+                    }
+        , test "ignoreOtherLocalEvent" <|
+            \_ ->
+                Expect.equal
+                    { cmds = ignoreOtherLocalEvent.cmds
+                    , newState = ignoreOtherLocalEvent.newState
+                    }
+                    { cmds = []
+                    , newState =
+                        { shared = toParent """Start a thread
+Cmd1 has pushed
 """
                         , nextThreadId = forkedThreadId
                         }
@@ -171,7 +222,7 @@ Cmd1 has pushed
                     }
                     { cmds = []
                     , newState =
-                        { shared = """Start a thread
+                        { shared = toParent """Start a thread
 Cmd1 has pushed
 """
                         , nextThreadId = forkedThreadId
@@ -185,7 +236,7 @@ Cmd1 has pushed
                     }
                     { cmds = []
                     , newState =
-                        { shared = """Start a thread
+                        { shared = toParent """Start a thread
 Cmd1 has pushed
 """
                         , nextThreadId = forkedThreadId
@@ -197,9 +248,9 @@ Cmd1 has pushed
                     { cmds = receiveGlobalEvent.cmds
                     , newState = receiveGlobalEvent.newState
                     }
-                    { cmds = [ ( mainThreadId, Cmd2 ), ( forkedThreadId, Cmd2 ), ( mainThreadId, Cmd1 ) ]
+                    { cmds = [ ( mainThreadId, C Cmd2 ), ( forkedThreadId, C Cmd2 ), ( mainThreadId, C Cmd1 ) ]
                     , newState =
-                        { shared = """Received Global1 message: HI
+                        { shared = toParent """Received Global1 message: HI
 This is evaluated immediately after await.
 Start forked thread.
 """
@@ -212,13 +263,26 @@ Start forked thread.
                     { cmds = receiveAnotherGlobalEvent.cmds
                     , newState = receiveAnotherGlobalEvent.newState
                     }
-                    { cmds = [ ( forkedThreadId, Cmd2 ), ( mainThreadId, Cmd1 ) ]
+                    { cmds = [ ( forkedThreadId, C Cmd2 ), ( mainThreadId, C Cmd1 ) ]
                     , newState =
-                        { shared = """Received Local1 message: hi
+                        { shared = toParent """Received Local1 message: hi
 This is evaluated immediately after await.
 Start forked thread.
 """
                         , nextThreadId = forkedThreadId2
+                        }
+                    }
+        , test "ignoreOtherGlobalEvent" <|
+            \_ ->
+                Expect.equal
+                    { cmds = ignoreOtherGlobalEvent.cmds
+                    , newState = ignoreOtherGlobalEvent.newState
+                    }
+                    { cmds = []
+                    , newState =
+                        { shared = toParent """Received Local1 message: hi
+"""
+                        , nextThreadId = forkedThreadId
                         }
                     }
         , test "receiveForkedThreadEvent" <|
@@ -229,7 +293,7 @@ Start forked thread.
                     }
                     { cmds = []
                     , newState =
-                        { shared = """Received Local2 in forked thread: 10
+                        { shared = toParent """Received Local2 in forked thread: 10
 """
                         , nextThreadId = forkedThreadId2
                         }
@@ -242,7 +306,7 @@ Start forked thread.
                     }
                     { cmds = []
                     , newState =
-                        { shared = """Received Local2 in original thread: 20
+                        { shared = toParent """Received Local2 in original thread: 20
 """
                         , nextThreadId = forkedThreadId2
                         }
@@ -255,7 +319,7 @@ Start forked thread.
                     }
                     { cmds = []
                     , newState =
-                        { shared = """Received Local2 in forked thread: 10
+                        { shared = toParent """Received Local2 in forked thread: 10
 Received Global1 in forked thread: FOO
 """
                         , nextThreadId = forkedThreadId2
@@ -269,7 +333,7 @@ Received Global1 in forked thread: FOO
                     }
                     { cmds = []
                     , newState =
-                        { shared = """Received Local2 in original thread: 20
+                        { shared = toParent """Received Local2 in original thread: 20
 Received Local2 in forked thread: 10
 """
                         , nextThreadId = forkedThreadId2
@@ -283,7 +347,7 @@ Received Local2 in forked thread: 10
                     }
                     { cmds = []
                     , newState =
-                        { shared = """Received Local2 in original thread: 20
+                        { shared = toParent """Received Local2 in original thread: 20
 Received Local2 in forked thread: 10
 Received Global1 in original thread: FOO
 Received Global1 in forked thread: FOO
@@ -297,9 +361,9 @@ Received Global1 in forked thread: FOO
                     { cmds = forkInFork.cmds
                     , newState = forkInFork.newState
                     }
-                    { cmds = [ ( forkedThreadId, Cmd1 ) ]
+                    { cmds = [ ( forkedThreadId, C Cmd1 ) ]
                     , newState =
-                        { shared = """Evaluate sampleProcedure3.
+                        { shared = toParent """Evaluate sampleProcedure3.
 Evaluate sampleProcedure2.
 """
                         , nextThreadId = forkedThreadId4
@@ -313,7 +377,7 @@ Evaluate sampleProcedure2.
                     }
                     { cmds = []
                     , newState =
-                        { shared = """original thread
+                        { shared = toParent """original thread
 sampleProcedure3.
 sampleProcedure2.
 """
@@ -328,7 +392,7 @@ sampleProcedure2.
                     }
                     { cmds = []
                     , newState =
-                        { shared = """Evaluate sampleProcedure3.
+                        { shared = toParent """Evaluate sampleProcedure3.
 Evaluate sampleProcedure4.
 """
                         , nextThreadId = forkedThreadId6
@@ -342,7 +406,7 @@ Evaluate sampleProcedure4.
                     }
                     { cmds = []
                     , newState =
-                        { shared = """Evaluate sampleProcedure3.
+                        { shared = toParent """Evaluate sampleProcedure3.
 Evaluate sampleProcedure4.
 sampleProcedure3.
 sampleProcedure4.
@@ -356,9 +420,9 @@ sampleProcedure4.
                     { cmds = globalToLeftThread.cmds
                     , newState = globalToLeftThread.newState
                     }
-                    { cmds = [ ( forkedThreadId5, Cmd2 ), ( mainThreadId, Cmd1 ) ]
+                    { cmds = [ ( forkedThreadId5, C Cmd2 ), ( mainThreadId, C Cmd1 ) ]
                     , newState =
-                        { shared = """Evaluate sampleProcedure3.
+                        { shared = toParent """Evaluate sampleProcedure3.
 Evaluate sampleProcedure4.
 sampleProcedure3.
 sampleProcedure4.
@@ -376,6 +440,26 @@ sampleProcedure4: left
 
 type alias Shared =
     String
+
+
+type alias ParentShared =
+    { child : Shared
+    , other : ()
+    }
+
+
+toParent : Shared -> ParentShared
+toParent shared =
+    { child = shared
+    , other = ()
+    }
+
+
+sharedLifter : Lifter ParentShared Shared
+sharedLifter =
+    { get = .child
+    , set = \child parent -> { parent | child = child }
+    }
 
 
 {-| Append a log message on the shared memory.
@@ -401,6 +485,21 @@ type Global
     | Global3
 
 
+type ParentGlobal
+    = G Global
+    | OtherGlobal
+
+
+mgetGlobal : ParentGlobal -> Maybe Global
+mgetGlobal pg =
+    case pg of
+        G global ->
+            Just global
+
+        _ ->
+            Nothing
+
+
 
 -- Local events
 
@@ -410,9 +509,30 @@ type Local
     | Local2 Int
 
 
+type ParentLocal
+    = L Local
+    | OtherLocal
+
+
+mgetLocal : ParentLocal -> Maybe Local
+mgetLocal pl =
+    case pl of
+        L local ->
+            Just local
+
+        _ ->
+            Nothing
+
+
 type LocalCmd
     = Cmd1
     | Cmd2
+    | Cmd3
+
+
+type ParentLocalCmd
+    = C LocalCmd
+    | OtherLocalCmd
 
 
 

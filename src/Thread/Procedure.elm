@@ -9,6 +9,9 @@ module Thread.Procedure exposing
     , fork
     , syncAll
     , quit
+    , liftShared
+    , wrapLocal
+    , wrapGlobal
     , elementView
     , documentView
     , init
@@ -41,6 +44,18 @@ module Thread.Procedure exposing
 @docs quit
 
 
+# Converters
+
+These items are needed when you try to build a hierarchy of shared memory and events in an SPA.
+Note that the pattern often unnecessarily increases complexity, so you should first consider using monolithic shared memory and events.
+
+For a sample, see [`sample/src/SPA.elm`](https://github.com/arowM/elm-thread/tree/main/sample/src).
+
+@docs liftShared
+@docs wrapLocal
+@docs wrapGlobal
+
+
 # Lower level functions
 
 It is recommended to use `Thread.Browser` for normal use.
@@ -61,6 +76,8 @@ import Browser exposing (Document)
 import Html exposing (Html)
 import Internal
 import Internal.ThreadId exposing (ThreadId)
+import Thread.Lifter exposing (Lifter)
+import Thread.Wrapper exposing (Wrapper)
 import Url exposing (Url)
 
 
@@ -278,3 +295,29 @@ subscriptions : (shared -> Sub global) -> Model shared global local -> Sub (Msg 
 subscriptions f (Model model) =
     f model.state.shared
         |> Sub.map globalEvent
+
+
+
+-- Converters
+
+
+{-| -}
+liftShared : Lifter a b -> Procedure b global local -> Procedure a global local
+liftShared lifter (Procedure proc) =
+    Internal.liftShared lifter proc
+        |> Procedure
+
+
+{-| -}
+wrapLocal : Wrapper a b -> Procedure shared global b -> Procedure shared global a
+wrapLocal wrapper (Procedure proc) =
+    Internal.liftLocal wrapper.unwrap proc
+        |> Internal.mapLocalCmd (Cmd.map wrapper.wrap)
+        |> Procedure
+
+
+{-| -}
+wrapGlobal : (a -> Maybe b) -> Procedure shared b local -> Procedure shared a local
+wrapGlobal unwrap (Procedure proc) =
+    Internal.liftGlobal unwrap proc
+        |> Procedure

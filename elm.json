@@ -5,8 +5,10 @@
     "license": "MIT",
     "version": "2.0.1",
     "exposed-modules": [
+        "Thread.Procedure",
         "Thread.Browser",
-        "Thread.Procedure"
+        "Thread.Wrapper",
+        "Thread.Lifter"
     ],
     "elm-version": "0.19.0 <= v < 0.20.0",
     "dependencies": {

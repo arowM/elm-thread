@@ -19,6 +19,11 @@ module Internal exposing
     , fork
     , syncAll
     , quit
+    , Lifter
+    , liftShared
+    , liftLocal
+    , liftGlobal
+    , mapLocalCmd
     )
 
 {-|
@@ -50,6 +55,15 @@ module Internal exposing
 @docs fork
 @docs syncAll
 @docs quit
+
+
+# Converters
+
+@docs Lifter
+@docs liftShared
+@docs liftLocal
+@docs liftGlobal
+@docs mapLocalCmd
 
 -}
 
@@ -216,7 +230,7 @@ fromProcedure_ myThreadId procs =
                             , next = fromProcedure_ myThreadId procs
                             }
 
-                        Just (Procedure ps1) ->
+                        Just ps1 ->
                             { cmds = []
                             , newState = prevState
                             , next =
@@ -395,10 +409,192 @@ batch procs =
 
 type Procedure_ localCmd shared global local
     = Do (shared -> ( shared, List localCmd ))
-    | Await (ThreadId -> Msg global local -> shared -> Maybe (Procedure localCmd shared global local))
+    | Await (ThreadId -> Msg global local -> shared -> Maybe (List (Procedure_ localCmd shared global local)))
     | Fork (() -> List (Procedure_ localCmd shared global local))
     | SyncAll (List (List (Procedure_ localCmd shared global local)))
     | Quit
+
+
+{-| Use to lift shared type.
+-}
+type alias Lifter a b =
+    { get : a -> b
+    , set : b -> a -> a
+    }
+
+
+{-| -}
+liftShared : Lifter a b -> Procedure localCmd b global local -> Procedure localCmd a global local
+liftShared lifter (Procedure ps) =
+    Procedure <| List.map (liftShared_ lifter) ps
+
+
+liftShared_ : Lifter a b -> Procedure_ localCmd b global local -> Procedure_ localCmd a global local
+liftShared_ lifter pb =
+    case pb of
+        Do f ->
+            Do <|
+                \a ->
+                    let
+                        ( b, cmds ) =
+                            f (lifter.get a)
+                    in
+                    ( lifter.set b a, cmds )
+
+        Await f ->
+            Await <|
+                \tid msg a ->
+                    f tid msg (lifter.get a)
+                        |> Maybe.map (List.map (liftShared_ lifter))
+
+        Fork f ->
+            Fork <|
+                \_ ->
+                    f ()
+                        |> List.map (liftShared_ lifter)
+
+        SyncAll pss ->
+            SyncAll <|
+                List.map (List.map (liftShared_ lifter)) pss
+
+        Quit ->
+            Quit
+
+
+{-| -}
+liftLocal : (a -> Maybe b) -> Procedure localCmd shared global b -> Procedure localCmd shared global a
+liftLocal mget (Procedure ps) =
+    List.map (liftLocal_ mget) ps
+        |> Procedure
+
+
+{-| -}
+liftLocal_ : (a -> Maybe b) -> Procedure_ localCmd shared global b -> Procedure_ localCmd shared global a
+liftLocal_ mget pb =
+    case pb of
+        Do f ->
+            Do f
+
+        Await f ->
+            Await <|
+                \tid msg shared ->
+                    mapMaybeLocal mget msg
+                        |> Maybe.andThen
+                            (\b ->
+                                f tid b shared
+                                    |> Maybe.map (List.map (liftLocal_ mget))
+                            )
+
+        Fork f ->
+            Fork <|
+                \_ ->
+                    f ()
+                        |> List.map (liftLocal_ mget)
+
+        SyncAll pss ->
+            SyncAll <|
+                List.map (List.map (liftLocal_ mget)) pss
+
+        Quit ->
+            Quit
+
+
+mapMaybeLocal : (a -> Maybe b) -> Msg global a -> Maybe (Msg global b)
+mapMaybeLocal f msg =
+    case msg of
+        GlobalEvent global ->
+            Just <| GlobalEvent global
+
+        ThreadEvent tid a ->
+            Maybe.map (ThreadEvent tid) (f a)
+
+
+{-| -}
+liftGlobal : (a -> Maybe b) -> Procedure localCmd shared b local -> Procedure localCmd shared a local
+liftGlobal mget (Procedure ps) =
+    List.map (liftGlobal_ mget) ps
+        |> Procedure
+
+
+{-| -}
+liftGlobal_ : (a -> Maybe b) -> Procedure_ localCmd shared b local -> Procedure_ localCmd shared a local
+liftGlobal_ mget pb =
+    case pb of
+        Do f ->
+            Do f
+
+        Await f ->
+            Await <|
+                \tid msg shared ->
+                    mapMaybeGlobal mget msg
+                        |> Maybe.andThen
+                            (\b ->
+                                f tid b shared
+                                    |> Maybe.map (List.map (liftGlobal_ mget))
+                            )
+
+        Fork f ->
+            Fork <|
+                \_ ->
+                    f ()
+                        |> List.map (liftGlobal_ mget)
+
+        SyncAll pss ->
+            SyncAll <|
+                List.map (List.map (liftGlobal_ mget)) pss
+
+        Quit ->
+            Quit
+
+
+mapMaybeGlobal : (a -> Maybe b) -> Msg a local -> Maybe (Msg b local)
+mapMaybeGlobal f msg =
+    case msg of
+        GlobalEvent a ->
+            Maybe.map GlobalEvent (f a)
+
+        ThreadEvent tid local ->
+            Just <| ThreadEvent tid local
+
+
+{-| -}
+mapLocalCmd : (a -> b) -> Procedure a shared global local -> Procedure b shared global local
+mapLocalCmd set (Procedure ps) =
+    List.map (mapLocalCmd_ set) ps
+        |> Procedure
+
+
+{-| -}
+mapLocalCmd_ : (a -> b) -> Procedure_ a shared global local -> Procedure_ b shared global local
+mapLocalCmd_ set pb =
+    case pb of
+        Do f ->
+            Do <|
+                \shared ->
+                    let
+                        ( new, cmds ) =
+                            f shared
+                    in
+                    ( new, List.map set cmds )
+
+        Await f ->
+            Await <|
+                \tid msg shared ->
+                    f tid msg shared
+                        |> Maybe.map (List.map (mapLocalCmd_ set))
+
+        Fork f ->
+            Fork <|
+                \_ ->
+                    f ()
+                        |> List.map (mapLocalCmd_ set)
+
+        SyncAll pss ->
+            SyncAll <|
+                List.map (List.map (mapLocalCmd_ set)) pss
+
+        Quit ->
+            Quit
 
 
 {-| -}
@@ -430,6 +626,8 @@ await f =
                     ThreadEvent tid_ local ->
                         if tid == tid_ then
                             f local shared
+                                |> Maybe.map
+                                    (\(Procedure ps) -> ps)
 
                         else
                             Nothing
@@ -445,6 +643,8 @@ awaitGlobal f =
                 case msg of
                     GlobalEvent global ->
                         f global shared
+                            |> Maybe.map
+                                (\(Procedure ps) -> ps)
 
                     ThreadEvent _ _ ->
                         Nothing
