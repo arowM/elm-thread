@@ -237,7 +237,7 @@ subscriptions _ =
 
 The following code is an excerpt from [`sample/src/SPA.elm`](https://github.com/arowM/elm-thread/tree/main/sample/src).
 
-```
+```elm
 import SPA.Page.Home as Home
 import SPA.Page.Users as Users
 import Thread.Lifter exposing (Lifter)
