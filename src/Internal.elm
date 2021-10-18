@@ -19,6 +19,8 @@ module Internal exposing
     , fork
     , syncAll
     , quit
+    , modifyAndThen
+    , lazy
     , Lifter
     , liftShared
     , liftLocal
@@ -55,6 +57,8 @@ module Internal exposing
 @docs fork
 @docs syncAll
 @docs quit
+@docs modifyAndThen
+@docs lazy
 
 
 # Converters
@@ -83,6 +87,7 @@ type Thread localCmd shared global local
     = EndOfThread
     | WithoutMsg (ThreadState shared -> ThreadResult localCmd shared global local)
     | WithMsg (Msg global local -> ThreadState shared -> ThreadResult localCmd shared global local)
+    | Async (Thread localCmd shared global local)
 
 
 {-| State to evaluate a thread.
@@ -124,6 +129,15 @@ runInForkedThread t1 t2 =
         ( _, EndOfThread ) ->
             t1
 
+        ( Async t1_, _ ) ->
+            Async <| runInForkedThread t1_ t2
+
+        ( _, Async EndOfThread ) ->
+            t1
+
+        ( _, Async (Async t2_) ) ->
+            runInForkedThread t1 (Async t2_)
+
         ( WithoutMsg f1, _ ) ->
             WithoutMsg <|
                 \a ->
@@ -146,6 +160,17 @@ runInForkedThread t1 t2 =
                         | next = runInForkedThread t1 res2.next
                     }
 
+        ( _, Async (WithoutMsg f2) ) ->
+            WithoutMsg <|
+                \a ->
+                    let
+                        res2 =
+                            f2 a
+                    in
+                    { res2
+                        | next = runInForkedThread t1 (Async res2.next)
+                    }
+
         ( WithMsg f1, WithMsg f2 ) ->
             WithMsg <|
                 \msg a ->
@@ -161,6 +186,21 @@ runInForkedThread t1 t2 =
                         , next = runInForkedThread res1.next res2.next
                     }
 
+        ( WithMsg f1, Async (WithMsg f2) ) ->
+            WithMsg <|
+                \msg a ->
+                    let
+                        res1 =
+                            f1 msg a
+
+                        res2 =
+                            f2 msg res1.newState
+                    in
+                    { res2
+                        | cmds = res1.cmds ++ res2.cmds
+                        , next = runInForkedThread res1.next (Async res2.next)
+                    }
+
 
 runInSameThread : Thread localCmd shared global local -> Thread localCmd shared global local -> Thread localCmd shared global local
 runInSameThread t1 t2 =
@@ -170,6 +210,12 @@ runInSameThread t1 t2 =
 
         ( _, EndOfThread ) ->
             t1
+
+        ( Async _, _ ) ->
+            runInForkedThread t2 t1
+
+        ( _, Async _ ) ->
+            runInForkedThread t1 t2
 
         ( WithoutMsg f1, _ ) ->
             WithoutMsg <|
@@ -206,18 +252,21 @@ fromProcedure_ myThreadId procs =
         [] ->
             EndOfThread
 
-        (Do f) :: ps ->
+        (DoAndThen f) :: ps2 ->
             WithoutMsg <|
                 \prevState ->
                     let
-                        ( shared1, cmds1 ) =
-                            f prevState.shared
+                        ( shared1, cmds1, ps1 ) =
+                            f () prevState.shared
                     in
                     { cmds =
                         cmds1
                             |> List.map (\cmd -> ( myThreadId, cmd ))
                     , newState = { prevState | shared = shared1 }
-                    , next = fromProcedure_ myThreadId ps
+                    , next =
+                        runInSameThread
+                            (fromProcedure_ myThreadId ps1)
+                            (fromProcedure_ myThreadId ps2)
                     }
 
         (Await f) :: ps2 ->
@@ -262,7 +311,7 @@ fromProcedure_ myThreadId procs =
                         | next =
                             runInForkedThread
                                 (fromProcedure_ myThreadId ps1)
-                                res.next
+                                (Async res.next)
                     }
 
         (SyncAll pss) :: ps2 ->
@@ -310,6 +359,15 @@ cue state thread =
             , next = EndOfThread
             }
 
+        Async t ->
+            let
+                res =
+                    cue state t
+            in
+            { res
+                | next = Async res.next
+            }
+
         WithoutMsg f ->
             let
                 res1 =
@@ -338,6 +396,9 @@ runWithMsg msg state thread =
     in
     case res.next of
         EndOfThread ->
+            res
+
+        Async _ ->
             res
 
         WithoutMsg _ ->
@@ -408,7 +469,7 @@ batch procs =
 
 
 type Procedure_ localCmd shared global local
-    = Do (shared -> ( shared, List localCmd ))
+    = DoAndThen (() -> shared -> ( shared, List localCmd, List (Procedure_ localCmd shared global local) ))
     | Await (ThreadId -> Msg global local -> shared -> Maybe (List (Procedure_ localCmd shared global local)))
     | Fork (() -> List (Procedure_ localCmd shared global local))
     | SyncAll (List (List (Procedure_ localCmd shared global local)))
@@ -432,14 +493,17 @@ liftShared lifter (Procedure ps) =
 liftShared_ : Lifter a b -> Procedure_ localCmd b global local -> Procedure_ localCmd a global local
 liftShared_ lifter pb =
     case pb of
-        Do f ->
-            Do <|
-                \a ->
+        DoAndThen f ->
+            DoAndThen <|
+                \_ a ->
                     let
-                        ( b, cmds ) =
-                            f (lifter.get a)
+                        ( b, cmds, ps ) =
+                            f () (lifter.get a)
                     in
-                    ( lifter.set b a, cmds )
+                    ( lifter.set b a
+                    , cmds
+                    , List.map (liftShared_ lifter) ps
+                    )
 
         Await f ->
             Await <|
@@ -472,8 +536,17 @@ liftLocal mget (Procedure ps) =
 liftLocal_ : (a -> Maybe b) -> Procedure_ localCmd shared global b -> Procedure_ localCmd shared global a
 liftLocal_ mget pb =
     case pb of
-        Do f ->
-            Do f
+        DoAndThen f ->
+            DoAndThen <|
+                \_ shared ->
+                    let
+                        ( shared2, cmds, ps ) =
+                            f () shared
+                    in
+                    ( shared2
+                    , cmds
+                    , List.map (liftLocal_ mget) ps
+                    )
 
         Await f ->
             Await <|
@@ -520,8 +593,17 @@ liftGlobal mget (Procedure ps) =
 liftGlobal_ : (a -> Maybe b) -> Procedure_ localCmd shared b local -> Procedure_ localCmd shared a local
 liftGlobal_ mget pb =
     case pb of
-        Do f ->
-            Do f
+        DoAndThen f ->
+            DoAndThen <|
+                \_ shared ->
+                    let
+                        ( shared2, cmds, ps ) =
+                            f () shared
+                    in
+                    ( shared2
+                    , cmds
+                    , List.map (liftGlobal_ mget) ps
+                    )
 
         Await f ->
             Await <|
@@ -568,14 +650,17 @@ mapLocalCmd set (Procedure ps) =
 mapLocalCmd_ : (a -> b) -> Procedure_ a shared global local -> Procedure_ b shared global local
 mapLocalCmd_ set pb =
     case pb of
-        Do f ->
-            Do <|
-                \shared ->
+        DoAndThen f ->
+            DoAndThen <|
+                \_ shared ->
                     let
-                        ( new, cmds ) =
-                            f shared
+                        ( shared2, cmds, ps ) =
+                            f () shared
                     in
-                    ( new, List.map set cmds )
+                    ( shared2
+                    , List.map set cmds
+                    , List.map (mapLocalCmd_ set) ps
+                    )
 
         Await f ->
             Await <|
@@ -601,7 +686,7 @@ mapLocalCmd_ set pb =
 modify : (shared -> shared) -> Procedure localCmd shared global local
 modify f =
     Procedure
-        [ Do <| \shared -> ( f shared, [] )
+        [ DoAndThen <| \_ shared -> ( f shared, [], [] )
         ]
 
 
@@ -609,7 +694,7 @@ modify f =
 push : (shared -> List localCmd) -> Procedure localCmd shared global local
 push f =
     Procedure
-        [ Do <| \shared -> ( shared, f shared )
+        [ DoAndThen <| \_ shared -> ( shared, f shared, [] )
         ]
 
 
@@ -674,3 +759,30 @@ syncAll procs =
 quit : Procedure localCmd shared global local
 quit =
     Procedure [ Quit ]
+
+
+{-| -}
+modifyAndThen : (shared -> ( shared, x )) -> (x -> Procedure localCmd shared global local) -> Procedure localCmd shared global local
+modifyAndThen f g =
+    Procedure
+        [ DoAndThen <|
+            \_ shared ->
+                let
+                    ( shared2, x ) =
+                        f shared
+
+                    (Procedure ps) =
+                        g x
+                in
+                ( shared2, [], ps )
+        ]
+
+
+{-| -}
+lazy : (() -> Procedure localCmd shared global local) -> Procedure localCmd shared global local
+lazy f =
+    Procedure
+        [ DoAndThen <|
+            \_ shared ->
+                ( shared, [], f () |> (\(Procedure ps) -> ps) )
+        ]

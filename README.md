@@ -3,6 +3,7 @@
 [![Build Status](https://travis-ci.com/arowM/elm-thread.svg?branch=main)](https://travis-ci.com/arowM/elm-thread)  
 [Document](https://package.elm-lang.org/packages/arowM/elm-thread/latest/)  
 [Live demo](https://arowm.github.io/elm-thread/)  
+[Live demo (advanced)](https://arowm.github.io/elm-thread/advanced.html)  
 
 ![logo](https://user-images.githubusercontent.com/1481749/115139779-de382400-a06e-11eb-80e7-22af97774bfa.jpg)
 
@@ -237,7 +238,7 @@ subscriptions _ =
 
 The following code is an excerpt from [`sample/src/SPA.elm`](https://github.com/arowM/elm-thread/tree/main/sample/src).
 
-```
+```elm
 import SPA.Page.Home as Home
 import SPA.Page.Users as Users
 import Thread.Lifter exposing (Lifter)

@@ -1,0 +1,9 @@
+{
+    "name": "arowM/elm-thread-sample",
+    "summary": "Sample applications for elm-thread",
+    "version": "1.0.0",
+    "exposed-modules": [
+        "Advanced.Resource",
+        "Advanced.GoatCard"
+    ]
+}

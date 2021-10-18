@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Main</title>
+  <title>Advanced</title>
   <style>body { padding: 0; margin: 0; }</style>
 </head>
 
@@ -4369,89 +4369,6 @@ function _Browser_load(url)
 		}
 	}));
 }
-
-
-
-function _Time_now(millisToPosix)
-{
-	return _Scheduler_binding(function(callback)
-	{
-		callback(_Scheduler_succeed(millisToPosix(Date.now())));
-	});
-}
-
-var _Time_setInterval = F2(function(interval, task)
-{
-	return _Scheduler_binding(function(callback)
-	{
-		var id = setInterval(function() { _Scheduler_rawSpawn(task); }, interval);
-		return function() { clearInterval(id); };
-	});
-});
-
-function _Time_here()
-{
-	return _Scheduler_binding(function(callback)
-	{
-		callback(_Scheduler_succeed(
-			A2($elm$time$Time$customZone, -(new Date().getTimezoneOffset()), _List_Nil)
-		));
-	});
-}
-
-
-function _Time_getZoneName()
-{
-	return _Scheduler_binding(function(callback)
-	{
-		try
-		{
-			var name = $elm$time$Time$Name(Intl.DateTimeFormat().resolvedOptions().timeZone);
-		}
-		catch (e)
-		{
-			var name = $elm$time$Time$Offset(new Date().getTimezoneOffset());
-		}
-		callback(_Scheduler_succeed(name));
-	});
-}
-
-
-
-var _Bitwise_and = F2(function(a, b)
-{
-	return a & b;
-});
-
-var _Bitwise_or = F2(function(a, b)
-{
-	return a | b;
-});
-
-var _Bitwise_xor = F2(function(a, b)
-{
-	return a ^ b;
-});
-
-function _Bitwise_complement(a)
-{
-	return ~a;
-};
-
-var _Bitwise_shiftLeftBy = F2(function(offset, a)
-{
-	return a << offset;
-});
-
-var _Bitwise_shiftRightBy = F2(function(offset, a)
-{
-	return a >> offset;
-});
-
-var _Bitwise_shiftRightZfBy = F2(function(offset, a)
-{
-	return a >>> offset;
-});
 var $elm$core$Basics$EQ = {$: 'EQ'};
 var $elm$core$Basics$GT = {$: 'GT'};
 var $elm$core$Basics$LT = {$: 'LT'};
@@ -5773,10 +5690,56 @@ var $author$project$Thread$Browser$document = function (option) {
 			view: $author$project$Thread$Procedure$documentView(option.view)
 		});
 };
-var $author$project$Main$PageLoading = {$: 'PageLoading'};
-var $author$project$Main$init = {log: '', page: $author$project$Main$PageLoading};
-var $author$project$Main$PageHome = function (a) {
-	return {$: 'PageHome', a: a};
+var $author$project$Advanced$Resource$Resource = function (a) {
+	return {$: 'Resource', a: a};
+};
+var $author$project$Advanced$Resource$Id = function (a) {
+	return {$: 'Id', a: a};
+};
+var $author$project$Advanced$Resource$initId = $author$project$Advanced$Resource$Id(0);
+var $author$project$Advanced$Resource$empty = $author$project$Advanced$Resource$Resource(
+	{list: _List_Nil, nextId: $author$project$Advanced$Resource$initId});
+var $author$project$Advanced$init = {cards: $author$project$Advanced$Resource$empty};
+var $author$project$Advanced$GoatCard$Shared = function (a) {
+	return {$: 'Shared', a: a};
+};
+var $author$project$Advanced$GoatCard$init = $author$project$Advanced$GoatCard$Shared(
+	{
+		form: {name: ''},
+		onEditing: true,
+		saved: {name: ''}
+	});
+var $author$project$Advanced$Resource$incId = function (_v0) {
+	var n = _v0.a;
+	return $author$project$Advanced$Resource$Id(n + 1);
+};
+var $author$project$Advanced$Resource$push = F2(
+	function (a, _v0) {
+		var resource = _v0.a;
+		return _Utils_Tuple2(
+			resource.nextId,
+			$author$project$Advanced$Resource$Resource(
+				_Utils_update(
+					resource,
+					{
+						list: _Utils_ap(
+							resource.list,
+							_List_fromArray(
+								[
+									_Utils_Tuple2(resource.nextId, a)
+								])),
+						nextId: $author$project$Advanced$Resource$incId(resource.nextId)
+					})));
+	});
+var $author$project$Advanced$addGoatCardAnd = function (shared) {
+	var _v0 = A2($author$project$Advanced$Resource$push, $author$project$Advanced$GoatCard$init, shared.cards);
+	var rid = _v0.a;
+	var newCards = _v0.b;
+	return _Utils_Tuple2(
+		_Utils_update(
+			shared,
+			{cards: newCards}),
+		rid);
 };
 var $author$project$Thread$Procedure$Procedure = function (a) {
 	return {$: 'Procedure', a: a};
@@ -5797,43 +5760,6 @@ var $elm$core$Maybe$map = F2(
 			return $elm$core$Maybe$Nothing;
 		}
 	});
-var $author$project$Internal$await = function (f) {
-	return $author$project$Internal$Procedure(
-		_List_fromArray(
-			[
-				$author$project$Internal$Await(
-				F3(
-					function (tid, msg, shared) {
-						if (msg.$ === 'GlobalEvent') {
-							return $elm$core$Maybe$Nothing;
-						} else {
-							var tid_ = msg.a;
-							var local = msg.b;
-							return _Utils_eq(tid, tid_) ? A2(
-								$elm$core$Maybe$map,
-								function (_v1) {
-									var ps = _v1.a;
-									return ps;
-								},
-								A2(f, local, shared)) : $elm$core$Maybe$Nothing;
-						}
-					}))
-			]));
-};
-var $author$project$Thread$Procedure$await = function (f) {
-	return $author$project$Thread$Procedure$Procedure(
-		$author$project$Internal$await(
-			F2(
-				function (local, shared) {
-					return A2(
-						$elm$core$Maybe$map,
-						function (_v0) {
-							var proc = _v0.a;
-							return proc;
-						},
-						A2(f, local, shared));
-				})));
-};
 var $author$project$Internal$awaitGlobal = function (f) {
 	return $author$project$Internal$Procedure(
 		_List_fromArray(
@@ -5935,8 +5861,487 @@ var $author$project$Thread$Procedure$fork = function (f) {
 					f(a));
 			}));
 };
+var $author$project$Advanced$GoatCardLocal = F2(
+	function (a, b) {
+		return {$: 'GoatCardLocal', a: a, b: b};
+	});
+var $elm$core$Basics$composeR = F3(
+	function (f, g, x) {
+		return g(
+			f(x));
+	});
 var $author$project$Internal$DoAndThen = function (a) {
 	return {$: 'DoAndThen', a: a};
+};
+var $author$project$Internal$Quit = {$: 'Quit'};
+var $author$project$Internal$SyncAll = function (a) {
+	return {$: 'SyncAll', a: a};
+};
+var $author$project$Internal$liftShared_ = F2(
+	function (lifter, pb) {
+		switch (pb.$) {
+			case 'DoAndThen':
+				var f = pb.a;
+				return $author$project$Internal$DoAndThen(
+					F2(
+						function (_v1, a) {
+							var _v2 = A2(
+								f,
+								_Utils_Tuple0,
+								lifter.get(a));
+							var b = _v2.a;
+							var cmds = _v2.b;
+							var ps = _v2.c;
+							return _Utils_Tuple3(
+								A2(lifter.set, b, a),
+								cmds,
+								A2(
+									$elm$core$List$map,
+									$author$project$Internal$liftShared_(lifter),
+									ps));
+						}));
+			case 'Await':
+				var f = pb.a;
+				return $author$project$Internal$Await(
+					F3(
+						function (tid, msg, a) {
+							return A2(
+								$elm$core$Maybe$map,
+								$elm$core$List$map(
+									$author$project$Internal$liftShared_(lifter)),
+								A3(
+									f,
+									tid,
+									msg,
+									lifter.get(a)));
+						}));
+			case 'Fork':
+				var f = pb.a;
+				return $author$project$Internal$Fork(
+					function (_v3) {
+						return A2(
+							$elm$core$List$map,
+							$author$project$Internal$liftShared_(lifter),
+							f(_Utils_Tuple0));
+					});
+			case 'SyncAll':
+				var pss = pb.a;
+				return $author$project$Internal$SyncAll(
+					A2(
+						$elm$core$List$map,
+						$elm$core$List$map(
+							$author$project$Internal$liftShared_(lifter)),
+						pss));
+			default:
+				return $author$project$Internal$Quit;
+		}
+	});
+var $author$project$Internal$liftShared = F2(
+	function (lifter, _v0) {
+		var ps = _v0.a;
+		return $author$project$Internal$Procedure(
+			A2(
+				$elm$core$List$map,
+				$author$project$Internal$liftShared_(lifter),
+				ps));
+	});
+var $author$project$Thread$Procedure$liftShared = F2(
+	function (lifter, _v0) {
+		var proc = _v0.a;
+		return $author$project$Thread$Procedure$Procedure(
+			A2($author$project$Internal$liftShared, lifter, proc));
+	});
+var $elm$core$List$maybeCons = F3(
+	function (f, mx, xs) {
+		var _v0 = f(mx);
+		if (_v0.$ === 'Just') {
+			var x = _v0.a;
+			return A2($elm$core$List$cons, x, xs);
+		} else {
+			return xs;
+		}
+	});
+var $elm$core$List$filterMap = F2(
+	function (f, xs) {
+		return A3(
+			$elm$core$List$foldr,
+			$elm$core$List$maybeCons(f),
+			_List_Nil,
+			xs);
+	});
+var $elm$core$List$head = function (list) {
+	if (list.b) {
+		var x = list.a;
+		var xs = list.b;
+		return $elm$core$Maybe$Just(x);
+	} else {
+		return $elm$core$Maybe$Nothing;
+	}
+};
+var $author$project$Advanced$Resource$lookup = F2(
+	function (target, _v0) {
+		var resource = _v0.a;
+		return $elm$core$List$head(
+			A2(
+				$elm$core$List$filterMap,
+				function (_v1) {
+					var id = _v1.a;
+					var a = _v1.b;
+					return _Utils_eq(id, target) ? $elm$core$Maybe$Just(a) : $elm$core$Maybe$Nothing;
+				},
+				resource.list));
+	});
+var $author$project$Advanced$Resource$modify = F2(
+	function (f, _v0) {
+		var resource = _v0.a;
+		return $author$project$Advanced$Resource$Resource(
+			_Utils_update(
+				resource,
+				{
+					list: A2(
+						$elm$core$List$map,
+						function (_v1) {
+							var id = _v1.a;
+							var a = _v1.b;
+							return _Utils_Tuple2(
+								id,
+								A2(f, id, a));
+						},
+						resource.list)
+				}));
+	});
+var $elm$core$Maybe$withDefault = F2(
+	function (_default, maybe) {
+		if (maybe.$ === 'Just') {
+			var value = maybe.a;
+			return value;
+		} else {
+			return _default;
+		}
+	});
+var $elm$core$Maybe$andThen = F2(
+	function (callback, maybeValue) {
+		if (maybeValue.$ === 'Just') {
+			var value = maybeValue.a;
+			return callback(value);
+		} else {
+			return $elm$core$Maybe$Nothing;
+		}
+	});
+var $author$project$Internal$mapMaybeGlobal = F2(
+	function (f, msg) {
+		if (msg.$ === 'GlobalEvent') {
+			var a = msg.a;
+			return A2(
+				$elm$core$Maybe$map,
+				$author$project$Internal$GlobalEvent,
+				f(a));
+		} else {
+			var tid = msg.a;
+			var local = msg.b;
+			return $elm$core$Maybe$Just(
+				A2($author$project$Internal$ThreadEvent, tid, local));
+		}
+	});
+var $author$project$Internal$liftGlobal_ = F2(
+	function (mget, pb) {
+		switch (pb.$) {
+			case 'DoAndThen':
+				var f = pb.a;
+				return $author$project$Internal$DoAndThen(
+					F2(
+						function (_v1, shared) {
+							var _v2 = A2(f, _Utils_Tuple0, shared);
+							var shared2 = _v2.a;
+							var cmds = _v2.b;
+							var ps = _v2.c;
+							return _Utils_Tuple3(
+								shared2,
+								cmds,
+								A2(
+									$elm$core$List$map,
+									$author$project$Internal$liftGlobal_(mget),
+									ps));
+						}));
+			case 'Await':
+				var f = pb.a;
+				return $author$project$Internal$Await(
+					F3(
+						function (tid, msg, shared) {
+							return A2(
+								$elm$core$Maybe$andThen,
+								function (b) {
+									return A2(
+										$elm$core$Maybe$map,
+										$elm$core$List$map(
+											$author$project$Internal$liftGlobal_(mget)),
+										A3(f, tid, b, shared));
+								},
+								A2($author$project$Internal$mapMaybeGlobal, mget, msg));
+						}));
+			case 'Fork':
+				var f = pb.a;
+				return $author$project$Internal$Fork(
+					function (_v3) {
+						return A2(
+							$elm$core$List$map,
+							$author$project$Internal$liftGlobal_(mget),
+							f(_Utils_Tuple0));
+					});
+			case 'SyncAll':
+				var pss = pb.a;
+				return $author$project$Internal$SyncAll(
+					A2(
+						$elm$core$List$map,
+						$elm$core$List$map(
+							$author$project$Internal$liftGlobal_(mget)),
+						pss));
+			default:
+				return $author$project$Internal$Quit;
+		}
+	});
+var $author$project$Internal$liftGlobal = F2(
+	function (mget, _v0) {
+		var ps = _v0.a;
+		return $author$project$Internal$Procedure(
+			A2(
+				$elm$core$List$map,
+				$author$project$Internal$liftGlobal_(mget),
+				ps));
+	});
+var $author$project$Thread$Procedure$wrapGlobal = F2(
+	function (unwrap, _v0) {
+		var proc = _v0.a;
+		return $author$project$Thread$Procedure$Procedure(
+			A2($author$project$Internal$liftGlobal, unwrap, proc));
+	});
+var $author$project$Internal$mapMaybeLocal = F2(
+	function (f, msg) {
+		if (msg.$ === 'GlobalEvent') {
+			var global = msg.a;
+			return $elm$core$Maybe$Just(
+				$author$project$Internal$GlobalEvent(global));
+		} else {
+			var tid = msg.a;
+			var a = msg.b;
+			return A2(
+				$elm$core$Maybe$map,
+				$author$project$Internal$ThreadEvent(tid),
+				f(a));
+		}
+	});
+var $author$project$Internal$liftLocal_ = F2(
+	function (mget, pb) {
+		switch (pb.$) {
+			case 'DoAndThen':
+				var f = pb.a;
+				return $author$project$Internal$DoAndThen(
+					F2(
+						function (_v1, shared) {
+							var _v2 = A2(f, _Utils_Tuple0, shared);
+							var shared2 = _v2.a;
+							var cmds = _v2.b;
+							var ps = _v2.c;
+							return _Utils_Tuple3(
+								shared2,
+								cmds,
+								A2(
+									$elm$core$List$map,
+									$author$project$Internal$liftLocal_(mget),
+									ps));
+						}));
+			case 'Await':
+				var f = pb.a;
+				return $author$project$Internal$Await(
+					F3(
+						function (tid, msg, shared) {
+							return A2(
+								$elm$core$Maybe$andThen,
+								function (b) {
+									return A2(
+										$elm$core$Maybe$map,
+										$elm$core$List$map(
+											$author$project$Internal$liftLocal_(mget)),
+										A3(f, tid, b, shared));
+								},
+								A2($author$project$Internal$mapMaybeLocal, mget, msg));
+						}));
+			case 'Fork':
+				var f = pb.a;
+				return $author$project$Internal$Fork(
+					function (_v3) {
+						return A2(
+							$elm$core$List$map,
+							$author$project$Internal$liftLocal_(mget),
+							f(_Utils_Tuple0));
+					});
+			case 'SyncAll':
+				var pss = pb.a;
+				return $author$project$Internal$SyncAll(
+					A2(
+						$elm$core$List$map,
+						$elm$core$List$map(
+							$author$project$Internal$liftLocal_(mget)),
+						pss));
+			default:
+				return $author$project$Internal$Quit;
+		}
+	});
+var $author$project$Internal$liftLocal = F2(
+	function (mget, _v0) {
+		var ps = _v0.a;
+		return $author$project$Internal$Procedure(
+			A2(
+				$elm$core$List$map,
+				$author$project$Internal$liftLocal_(mget),
+				ps));
+	});
+var $author$project$Internal$mapLocalCmd_ = F2(
+	function (set, pb) {
+		switch (pb.$) {
+			case 'DoAndThen':
+				var f = pb.a;
+				return $author$project$Internal$DoAndThen(
+					F2(
+						function (_v1, shared) {
+							var _v2 = A2(f, _Utils_Tuple0, shared);
+							var shared2 = _v2.a;
+							var cmds = _v2.b;
+							var ps = _v2.c;
+							return _Utils_Tuple3(
+								shared2,
+								A2($elm$core$List$map, set, cmds),
+								A2(
+									$elm$core$List$map,
+									$author$project$Internal$mapLocalCmd_(set),
+									ps));
+						}));
+			case 'Await':
+				var f = pb.a;
+				return $author$project$Internal$Await(
+					F3(
+						function (tid, msg, shared) {
+							return A2(
+								$elm$core$Maybe$map,
+								$elm$core$List$map(
+									$author$project$Internal$mapLocalCmd_(set)),
+								A3(f, tid, msg, shared));
+						}));
+			case 'Fork':
+				var f = pb.a;
+				return $author$project$Internal$Fork(
+					function (_v3) {
+						return A2(
+							$elm$core$List$map,
+							$author$project$Internal$mapLocalCmd_(set),
+							f(_Utils_Tuple0));
+					});
+			case 'SyncAll':
+				var pss = pb.a;
+				return $author$project$Internal$SyncAll(
+					A2(
+						$elm$core$List$map,
+						$elm$core$List$map(
+							$author$project$Internal$mapLocalCmd_(set)),
+						pss));
+			default:
+				return $author$project$Internal$Quit;
+		}
+	});
+var $author$project$Internal$mapLocalCmd = F2(
+	function (set, _v0) {
+		var ps = _v0.a;
+		return $author$project$Internal$Procedure(
+			A2(
+				$elm$core$List$map,
+				$author$project$Internal$mapLocalCmd_(set),
+				ps));
+	});
+var $author$project$Thread$Procedure$wrapLocal = F2(
+	function (wrapper, _v0) {
+		var proc = _v0.a;
+		return $author$project$Thread$Procedure$Procedure(
+			A2(
+				$author$project$Internal$mapLocalCmd,
+				$elm$core$Platform$Cmd$map(wrapper.wrap),
+				A2($author$project$Internal$liftLocal, wrapper.unwrap, proc)));
+	});
+var $author$project$Advanced$fromGoatCardProcedure = function (target) {
+	return A2(
+		$elm$core$Basics$composeR,
+		$author$project$Thread$Procedure$liftShared(
+			{
+				get: function (shared) {
+					return A2(
+						$elm$core$Maybe$withDefault,
+						$author$project$Advanced$GoatCard$init,
+						A2($author$project$Advanced$Resource$lookup, target, shared.cards));
+				},
+				set: F2(
+					function (_new, shared) {
+						return _Utils_update(
+							shared,
+							{
+								cards: A2(
+									$author$project$Advanced$Resource$modify,
+									F2(
+										function (id, a) {
+											return _Utils_eq(id, target) ? _new : a;
+										}),
+									shared.cards)
+							});
+					})
+			}),
+		A2(
+			$elm$core$Basics$composeR,
+			$author$project$Thread$Procedure$wrapLocal(
+				{
+					unwrap: function (local) {
+						var id = local.a;
+						var event = local.b;
+						return _Utils_eq(id, target) ? $elm$core$Maybe$Just(event) : $elm$core$Maybe$Nothing;
+					},
+					wrap: $author$project$Advanced$GoatCardLocal(target)
+				}),
+			$author$project$Thread$Procedure$wrapGlobal(
+				function (global) {
+					if (global.$ === 'GoatCardGlobal') {
+						var id = global.a;
+						var event = global.b;
+						return _Utils_eq(id, target) ? $elm$core$Maybe$Just(event) : $elm$core$Maybe$Nothing;
+					} else {
+						return $elm$core$Maybe$Nothing;
+					}
+				})));
+};
+var $author$project$Internal$lazy = function (f) {
+	return $author$project$Internal$Procedure(
+		_List_fromArray(
+			[
+				$author$project$Internal$DoAndThen(
+				F2(
+					function (_v0, shared) {
+						return _Utils_Tuple3(
+							shared,
+							_List_Nil,
+							function (_v1) {
+								var ps = _v1.a;
+								return ps;
+							}(
+								f(_Utils_Tuple0)));
+					}))
+			]));
+};
+var $author$project$Thread$Procedure$lazy = function (f) {
+	return $author$project$Thread$Procedure$Procedure(
+		$author$project$Internal$lazy(
+			function (_v0) {
+				return function (_v1) {
+					var proc = _v1.a;
+					return proc;
+				}(
+					f(_Utils_Tuple0));
+			}));
 };
 var $author$project$Internal$modify = function (f) {
 	return $author$project$Internal$Procedure(
@@ -5956,802 +6361,256 @@ var $author$project$Thread$Procedure$modify = function (f) {
 	return $author$project$Thread$Procedure$Procedure(
 		$author$project$Internal$modify(f));
 };
-var $author$project$Main$modifyPageHome = function (f) {
-	return $author$project$Thread$Procedure$modify(
-		function (shared) {
-			var _v0 = shared.page;
-			if (_v0.$ === 'PageHome') {
-				var home = _v0.a;
-				return _Utils_update(
-					shared,
-					{
-						page: $author$project$Main$PageHome(
-							f(home))
-					});
-			} else {
-				return shared;
-			}
-		});
-};
-function $author$project$Main$cyclic$clockProcedure() {
+var $author$project$Internal$modifyAndThen = F2(
+	function (f, g) {
+		return $author$project$Internal$Procedure(
+			_List_fromArray(
+				[
+					$author$project$Internal$DoAndThen(
+					F2(
+						function (_v0, shared) {
+							var _v1 = f(shared);
+							var shared2 = _v1.a;
+							var x = _v1.b;
+							var _v2 = g(x);
+							var ps = _v2.a;
+							return _Utils_Tuple3(shared2, _List_Nil, ps);
+						}))
+				]));
+	});
+var $author$project$Thread$Procedure$modifyAndThen = F2(
+	function (f, g) {
+		return $author$project$Thread$Procedure$Procedure(
+			A2(
+				$author$project$Internal$modifyAndThen,
+				f,
+				function (x) {
+					return function (_v0) {
+						var proc = _v0.a;
+						return proc;
+					}(
+						g(x));
+				}));
+	});
+var $author$project$Internal$quit = $author$project$Internal$Procedure(
+	_List_fromArray(
+		[$author$project$Internal$Quit]));
+var $author$project$Thread$Procedure$quit = $author$project$Thread$Procedure$Procedure($author$project$Internal$quit);
+function $author$project$Advanced$GoatCard$cyclic$editModeProcedure() {
+	return $author$project$Thread$Procedure$batch(
+		_List_fromArray(
+			[
+				$author$project$Thread$Procedure$awaitGlobal(
+				F2(
+					function (global, _v3) {
+						switch (global.$) {
+							case 'ClickSave':
+								return $elm$core$Maybe$Just(
+									$author$project$Thread$Procedure$batch(
+										_List_fromArray(
+											[
+												$author$project$Thread$Procedure$modify(
+												function (_v5) {
+													var shared = _v5.a;
+													return $author$project$Advanced$GoatCard$Shared(
+														_Utils_update(
+															shared,
+															{
+																form: {name: ''},
+																onEditing: false,
+																saved: {name: shared.form.name}
+															}));
+												}),
+												$author$project$Advanced$GoatCard$cyclic$savedModeProcedure()
+											])));
+							case 'ClickCancel':
+								return $elm$core$Maybe$Just(
+									$author$project$Thread$Procedure$batch(
+										_List_fromArray(
+											[
+												$author$project$Thread$Procedure$modify(
+												function (_v6) {
+													var shared = _v6.a;
+													return $author$project$Advanced$GoatCard$Shared(
+														_Utils_update(
+															shared,
+															{
+																form: {name: ''},
+																onEditing: false
+															}));
+												}),
+												$author$project$Advanced$GoatCard$cyclic$savedModeProcedure()
+											])));
+							case 'ChangeName':
+								var str = global.a;
+								return $elm$core$Maybe$Just(
+									$author$project$Thread$Procedure$batch(
+										_List_fromArray(
+											[
+												$author$project$Thread$Procedure$modify(
+												function (_v7) {
+													var shared = _v7.a;
+													return $author$project$Advanced$GoatCard$Shared(
+														_Utils_update(
+															shared,
+															{
+																form: function (form) {
+																	return _Utils_update(
+																		form,
+																		{name: str});
+																}(shared.form)
+															}));
+												}),
+												$author$project$Thread$Procedure$lazy(
+												function (_v8) {
+													return $author$project$Advanced$GoatCard$cyclic$editModeProcedure();
+												})
+											])));
+							default:
+								return $elm$core$Maybe$Nothing;
+						}
+					}))
+			]));
+}
+function $author$project$Advanced$GoatCard$cyclic$savedModeProcedure() {
 	return $author$project$Thread$Procedure$batch(
 		_List_fromArray(
 			[
 				$author$project$Thread$Procedure$awaitGlobal(
 				F2(
 					function (global, _v0) {
-						if (global.$ === 'ReceiveTick') {
-							var time = global.a;
-							return $elm$core$Maybe$Just(
-								$author$project$Main$modifyPageHome(
-									function (home) {
-										return _Utils_update(
-											home,
-											{time: time});
-									}));
-						} else {
-							return $elm$core$Maybe$Nothing;
+						switch (global.$) {
+							case 'ClickEdit':
+								return $elm$core$Maybe$Just(
+									$author$project$Thread$Procedure$batch(
+										_List_fromArray(
+											[
+												$author$project$Thread$Procedure$modify(
+												function (_v2) {
+													var shared = _v2.a;
+													return $author$project$Advanced$GoatCard$Shared(
+														_Utils_update(
+															shared,
+															{
+																form: {name: shared.saved.name},
+																onEditing: true
+															}));
+												}),
+												$author$project$Advanced$GoatCard$cyclic$editModeProcedure()
+											])));
+							case 'ClickRemove':
+								return $elm$core$Maybe$Just($author$project$Thread$Procedure$quit);
+							default:
+								return $elm$core$Maybe$Nothing;
 						}
-					})),
-				$author$project$Thread$Procedure$fork(
-				function (_v2) {
-					return $author$project$Main$cyclic$clockProcedure();
-				})
+					}))
 			]));
 }
 try {
-	var $author$project$Main$clockProcedure = $author$project$Main$cyclic$clockProcedure();
-	$author$project$Main$cyclic$clockProcedure = function () {
-		return $author$project$Main$clockProcedure;
+	var $author$project$Advanced$GoatCard$editModeProcedure = $author$project$Advanced$GoatCard$cyclic$editModeProcedure();
+	$author$project$Advanced$GoatCard$cyclic$editModeProcedure = function () {
+		return $author$project$Advanced$GoatCard$editModeProcedure;
+	};
+	var $author$project$Advanced$GoatCard$savedModeProcedure = $author$project$Advanced$GoatCard$cyclic$savedModeProcedure();
+	$author$project$Advanced$GoatCard$cyclic$savedModeProcedure = function () {
+		return $author$project$Advanced$GoatCard$savedModeProcedure;
 	};
 } catch ($) {
-	throw 'Some top-level definitions from `Main` are causing infinite recursion:\n\n  ┌─────┐\n  │    clockProcedure\n  └─────┘\n\nThese errors are very tricky, so read https://elm-lang.org/0.19.1/bad-recursion to learn how to fix it!';}
-var $author$project$Main$putLog = function (log) {
-	return $author$project$Thread$Procedure$modify(
-		function (shared) {
-			return _Utils_update(
-				shared,
-				{log: shared.log + (log + '\n')});
-		});
-};
-var $author$project$Internal$Quit = {$: 'Quit'};
-var $author$project$Internal$quit = $author$project$Internal$Procedure(
-	_List_fromArray(
-		[$author$project$Internal$Quit]));
-var $author$project$Thread$Procedure$quit = $author$project$Thread$Procedure$Procedure($author$project$Internal$quit);
-var $author$project$Main$ReceiveInitialTime = function (a) {
-	return {$: 'ReceiveInitialTime', a: a};
-};
-var $elm$time$Time$Name = function (a) {
-	return {$: 'Name', a: a};
-};
-var $elm$time$Time$Offset = function (a) {
-	return {$: 'Offset', a: a};
-};
-var $elm$time$Time$Zone = F2(
-	function (a, b) {
-		return {$: 'Zone', a: a, b: b};
+	throw 'Some top-level definitions from `Advanced.GoatCard` are causing infinite recursion:\n\n  ┌─────┐\n  │    editModeProcedure\n  │     ↓\n  │    savedModeProcedure\n  └─────┘\n\nThese errors are very tricky, so read https://elm-lang.org/0.19.1/bad-recursion to learn how to fix it!';}
+var $author$project$Advanced$GoatCard$procedure = $author$project$Advanced$GoatCard$editModeProcedure;
+var $elm$core$List$filter = F2(
+	function (isGood, list) {
+		return A3(
+			$elm$core$List$foldr,
+			F2(
+				function (x, xs) {
+					return isGood(x) ? A2($elm$core$List$cons, x, xs) : xs;
+				}),
+			_List_Nil,
+			list);
 	});
-var $elm$time$Time$customZone = $elm$time$Time$Zone;
-var $elm$time$Time$here = _Time_here(_Utils_Tuple0);
-var $elm$time$Time$Posix = function (a) {
-	return {$: 'Posix', a: a};
-};
-var $elm$time$Time$millisToPosix = $elm$time$Time$Posix;
-var $elm$time$Time$now = _Time_now($elm$time$Time$millisToPosix);
-var $elm$core$Basics$composeR = F3(
-	function (f, g, x) {
-		return g(
-			f(x));
-	});
-var $author$project$Internal$push = function (f) {
-	return $author$project$Internal$Procedure(
-		_List_fromArray(
-			[
-				$author$project$Internal$DoAndThen(
-				F2(
-					function (_v0, shared) {
-						return _Utils_Tuple3(
-							shared,
-							f(shared),
-							_List_Nil);
-					}))
-			]));
-};
-var $elm$core$List$singleton = function (value) {
-	return _List_fromArray(
-		[value]);
-};
-var $author$project$Thread$Procedure$push = function (f) {
-	return $author$project$Thread$Procedure$Procedure(
-		$author$project$Internal$push(
-			A2($elm$core$Basics$composeR, f, $elm$core$List$singleton)));
-};
-var $author$project$Main$requestInitialTime = $author$project$Thread$Procedure$push(
-	function (_v0) {
-		return A2(
-			$elm$core$Task$perform,
-			$author$project$Main$ReceiveInitialTime,
-			A3(
-				$elm$core$Task$map2,
-				F2(
-					function (zone, time) {
-						return _Utils_Tuple2(zone, time);
-					}),
-				$elm$time$Time$here,
-				$elm$time$Time$now));
-	});
-var $author$project$Main$setPageView = function (page) {
-	return $author$project$Thread$Procedure$modify(
-		function (shared) {
-			return _Utils_update(
-				shared,
-				{page: page});
-		});
-};
-var $author$project$Main$WakeUp = {$: 'WakeUp'};
-var $author$project$Internal$none = $author$project$Internal$Procedure(_List_Nil);
-var $author$project$Thread$Procedure$none = $author$project$Thread$Procedure$Procedure($author$project$Internal$none);
-var $elm$core$Process$sleep = _Process_sleep;
-var $author$project$Main$sleep = function (msec) {
-	return $author$project$Thread$Procedure$batch(
-		_List_fromArray(
-			[
-				$author$project$Thread$Procedure$push(
-				function (_v0) {
-					return A2(
-						$elm$core$Task$perform,
+var $elm$core$Basics$neq = _Utils_notEqual;
+var $author$project$Advanced$Resource$remove = F2(
+	function (target, _v0) {
+		var resource = _v0.a;
+		return $author$project$Advanced$Resource$Resource(
+			_Utils_update(
+				resource,
+				{
+					list: A2(
+						$elm$core$List$filter,
 						function (_v1) {
-							return $author$project$Main$WakeUp;
+							var id = _v1.a;
+							return !_Utils_eq(id, target);
 						},
-						$elm$core$Process$sleep(msec));
-				}),
-				$author$project$Thread$Procedure$await(
-				F2(
-					function (local, _v2) {
-						if (local.$ === 'WakeUp') {
-							return $elm$core$Maybe$Just($author$project$Thread$Procedure$none);
-						} else {
-							return $elm$core$Maybe$Nothing;
-						}
-					}))
-			]));
-};
-var $author$project$Main$sleepProcedure1 = $author$project$Thread$Procedure$batch(
-	_List_fromArray(
-		[
-			$author$project$Main$putLog('Sleep 5 sec.'),
-			$author$project$Main$sleep(5000),
-			$author$project$Main$putLog('Slept 5 sec.')
-		]));
-var $author$project$Main$sleepProcedure2 = $author$project$Thread$Procedure$batch(
-	_List_fromArray(
-		[
-			$author$project$Main$putLog('Sleep 10 sec.'),
-			$author$project$Main$sleep(10000),
-			$author$project$Main$putLog('Slept 10 sec.')
-		]));
-var $author$project$Internal$SyncAll = function (a) {
-	return {$: 'SyncAll', a: a};
-};
-var $author$project$Internal$syncAll = function (procs) {
-	return $author$project$Internal$Procedure(
-		_List_fromArray(
-			[
-				$author$project$Internal$SyncAll(
-				A2(
-					$elm$core$List$map,
-					function (_v0) {
-						var ps = _v0.a;
-						return ps;
-					},
-					procs))
-			]));
-};
-var $author$project$Thread$Procedure$syncAll = function (procs) {
-	return $author$project$Thread$Procedure$Procedure(
-		$author$project$Internal$syncAll(
-			A2(
-				$elm$core$List$map,
-				function (_v0) {
-					var proc = _v0.a;
-					return proc;
-				},
-				procs)));
-};
-var $author$project$Main$procedure = function (_v0) {
+						resource.list)
+				}));
+	});
+var $author$project$Advanced$procedure = function (_v0) {
 	return $author$project$Thread$Procedure$batch(
 		_List_fromArray(
 			[
-				$author$project$Main$sleep(3000),
-				$author$project$Main$requestInitialTime,
-				$author$project$Thread$Procedure$await(
-				F2(
-					function (local, _v1) {
-						if (local.$ === 'ReceiveInitialTime') {
-							var _v3 = local.a;
-							var zone = _v3.a;
-							var time = _v3.b;
-							return $elm$core$Maybe$Just(
-								$author$project$Main$setPageView(
-									$author$project$Main$PageHome(
-										{showActionButton: false, time: time, zone: zone})));
-						} else {
-							return $elm$core$Maybe$Nothing;
-						}
-					})),
-				$author$project$Main$putLog('Forking thread for clock...'),
-				$author$project$Thread$Procedure$fork(
-				function (_v4) {
-					return $author$project$Main$clockProcedure;
-				}),
-				$author$project$Main$modifyPageHome(
-				function (home) {
-					return _Utils_update(
-						home,
-						{showActionButton: true});
-				}),
-				$author$project$Main$putLog('Press "Action" button bellow.'),
 				$author$project$Thread$Procedure$awaitGlobal(
 				F2(
-					function (global, _v5) {
-						if (global.$ === 'ClickActionButton') {
+					function (global, _v1) {
+						if (global.$ === 'ClickAddGoatCard') {
 							return $elm$core$Maybe$Just(
 								$author$project$Thread$Procedure$batch(
 									_List_fromArray(
 										[
-											$author$project$Main$modifyPageHome(
-											function (home) {
-												return _Utils_update(
-													home,
-													{showActionButton: false});
-											}),
-											$author$project$Main$putLog('"Action" button has pressed.')
+											A2(
+											$author$project$Thread$Procedure$modifyAndThen,
+											$author$project$Advanced$addGoatCardAnd,
+											function (rid) {
+												return $author$project$Thread$Procedure$batch(
+													_List_fromArray(
+														[
+															$author$project$Thread$Procedure$fork(
+															function (_v3) {
+																return $author$project$Thread$Procedure$batch(
+																	_List_fromArray(
+																		[
+																			A2($author$project$Advanced$fromGoatCardProcedure, rid, $author$project$Advanced$GoatCard$procedure),
+																			$author$project$Thread$Procedure$modify(
+																			function (shared) {
+																				return _Utils_update(
+																					shared,
+																					{
+																						cards: A2($author$project$Advanced$Resource$remove, rid, shared.cards)
+																					});
+																			})
+																		]));
+															})
+														]));
+											})
 										])));
 						} else {
 							return $elm$core$Maybe$Nothing;
 						}
 					})),
-				$author$project$Thread$Procedure$syncAll(
-				_List_fromArray(
-					[$author$project$Main$sleepProcedure1, $author$project$Main$sleepProcedure2])),
-				$author$project$Main$putLog('All child threads have completed.'),
-				$author$project$Thread$Procedure$quit,
-				$author$project$Main$putLog('(Unreachable)')
+				$author$project$Thread$Procedure$lazy(
+				function (_v4) {
+					return $author$project$Advanced$procedure(_Utils_Tuple0);
+				})
 			]));
 };
-var $author$project$Main$ReceiveTick = function (a) {
-	return {$: 'ReceiveTick', a: a};
+var $elm$core$Platform$Sub$batch = _Platform_batch;
+var $elm$core$Platform$Sub$none = $elm$core$Platform$Sub$batch(_List_Nil);
+var $author$project$Advanced$subscriptions = function (_v0) {
+	return $elm$core$Platform$Sub$none;
 };
-var $elm$time$Time$Every = F2(
+var $author$project$Advanced$ClickAddGoatCard = {$: 'ClickAddGoatCard'};
+var $author$project$Advanced$GoatCardGlobal = F2(
 	function (a, b) {
-		return {$: 'Every', a: a, b: b};
+		return {$: 'GoatCardGlobal', a: a, b: b};
 	});
-var $elm$time$Time$State = F2(
-	function (taggers, processes) {
-		return {processes: processes, taggers: taggers};
-	});
-var $elm$core$Dict$RBEmpty_elm_builtin = {$: 'RBEmpty_elm_builtin'};
-var $elm$core$Dict$empty = $elm$core$Dict$RBEmpty_elm_builtin;
-var $elm$time$Time$init = $elm$core$Task$succeed(
-	A2($elm$time$Time$State, $elm$core$Dict$empty, $elm$core$Dict$empty));
-var $elm$core$Basics$compare = _Utils_compare;
-var $elm$core$Dict$get = F2(
-	function (targetKey, dict) {
-		get:
-		while (true) {
-			if (dict.$ === 'RBEmpty_elm_builtin') {
-				return $elm$core$Maybe$Nothing;
-			} else {
-				var key = dict.b;
-				var value = dict.c;
-				var left = dict.d;
-				var right = dict.e;
-				var _v1 = A2($elm$core$Basics$compare, targetKey, key);
-				switch (_v1.$) {
-					case 'LT':
-						var $temp$targetKey = targetKey,
-							$temp$dict = left;
-						targetKey = $temp$targetKey;
-						dict = $temp$dict;
-						continue get;
-					case 'EQ':
-						return $elm$core$Maybe$Just(value);
-					default:
-						var $temp$targetKey = targetKey,
-							$temp$dict = right;
-						targetKey = $temp$targetKey;
-						dict = $temp$dict;
-						continue get;
-				}
-			}
-		}
-	});
-var $elm$core$Dict$Black = {$: 'Black'};
-var $elm$core$Dict$RBNode_elm_builtin = F5(
-	function (a, b, c, d, e) {
-		return {$: 'RBNode_elm_builtin', a: a, b: b, c: c, d: d, e: e};
-	});
-var $elm$core$Dict$Red = {$: 'Red'};
-var $elm$core$Dict$balance = F5(
-	function (color, key, value, left, right) {
-		if ((right.$ === 'RBNode_elm_builtin') && (right.a.$ === 'Red')) {
-			var _v1 = right.a;
-			var rK = right.b;
-			var rV = right.c;
-			var rLeft = right.d;
-			var rRight = right.e;
-			if ((left.$ === 'RBNode_elm_builtin') && (left.a.$ === 'Red')) {
-				var _v3 = left.a;
-				var lK = left.b;
-				var lV = left.c;
-				var lLeft = left.d;
-				var lRight = left.e;
-				return A5(
-					$elm$core$Dict$RBNode_elm_builtin,
-					$elm$core$Dict$Red,
-					key,
-					value,
-					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, lK, lV, lLeft, lRight),
-					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, rK, rV, rLeft, rRight));
-			} else {
-				return A5(
-					$elm$core$Dict$RBNode_elm_builtin,
-					color,
-					rK,
-					rV,
-					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Red, key, value, left, rLeft),
-					rRight);
-			}
-		} else {
-			if ((((left.$ === 'RBNode_elm_builtin') && (left.a.$ === 'Red')) && (left.d.$ === 'RBNode_elm_builtin')) && (left.d.a.$ === 'Red')) {
-				var _v5 = left.a;
-				var lK = left.b;
-				var lV = left.c;
-				var _v6 = left.d;
-				var _v7 = _v6.a;
-				var llK = _v6.b;
-				var llV = _v6.c;
-				var llLeft = _v6.d;
-				var llRight = _v6.e;
-				var lRight = left.e;
-				return A5(
-					$elm$core$Dict$RBNode_elm_builtin,
-					$elm$core$Dict$Red,
-					lK,
-					lV,
-					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, llK, llV, llLeft, llRight),
-					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, key, value, lRight, right));
-			} else {
-				return A5($elm$core$Dict$RBNode_elm_builtin, color, key, value, left, right);
-			}
-		}
-	});
-var $elm$core$Dict$insertHelp = F3(
-	function (key, value, dict) {
-		if (dict.$ === 'RBEmpty_elm_builtin') {
-			return A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Red, key, value, $elm$core$Dict$RBEmpty_elm_builtin, $elm$core$Dict$RBEmpty_elm_builtin);
-		} else {
-			var nColor = dict.a;
-			var nKey = dict.b;
-			var nValue = dict.c;
-			var nLeft = dict.d;
-			var nRight = dict.e;
-			var _v1 = A2($elm$core$Basics$compare, key, nKey);
-			switch (_v1.$) {
-				case 'LT':
-					return A5(
-						$elm$core$Dict$balance,
-						nColor,
-						nKey,
-						nValue,
-						A3($elm$core$Dict$insertHelp, key, value, nLeft),
-						nRight);
-				case 'EQ':
-					return A5($elm$core$Dict$RBNode_elm_builtin, nColor, nKey, value, nLeft, nRight);
-				default:
-					return A5(
-						$elm$core$Dict$balance,
-						nColor,
-						nKey,
-						nValue,
-						nLeft,
-						A3($elm$core$Dict$insertHelp, key, value, nRight));
-			}
-		}
-	});
-var $elm$core$Dict$insert = F3(
-	function (key, value, dict) {
-		var _v0 = A3($elm$core$Dict$insertHelp, key, value, dict);
-		if ((_v0.$ === 'RBNode_elm_builtin') && (_v0.a.$ === 'Red')) {
-			var _v1 = _v0.a;
-			var k = _v0.b;
-			var v = _v0.c;
-			var l = _v0.d;
-			var r = _v0.e;
-			return A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, k, v, l, r);
-		} else {
-			var x = _v0;
-			return x;
-		}
-	});
-var $elm$time$Time$addMySub = F2(
-	function (_v0, state) {
-		var interval = _v0.a;
-		var tagger = _v0.b;
-		var _v1 = A2($elm$core$Dict$get, interval, state);
-		if (_v1.$ === 'Nothing') {
-			return A3(
-				$elm$core$Dict$insert,
-				interval,
-				_List_fromArray(
-					[tagger]),
-				state);
-		} else {
-			var taggers = _v1.a;
-			return A3(
-				$elm$core$Dict$insert,
-				interval,
-				A2($elm$core$List$cons, tagger, taggers),
-				state);
-		}
-	});
-var $elm$core$Process$kill = _Scheduler_kill;
-var $elm$core$Dict$foldl = F3(
-	function (func, acc, dict) {
-		foldl:
-		while (true) {
-			if (dict.$ === 'RBEmpty_elm_builtin') {
-				return acc;
-			} else {
-				var key = dict.b;
-				var value = dict.c;
-				var left = dict.d;
-				var right = dict.e;
-				var $temp$func = func,
-					$temp$acc = A3(
-					func,
-					key,
-					value,
-					A3($elm$core$Dict$foldl, func, acc, left)),
-					$temp$dict = right;
-				func = $temp$func;
-				acc = $temp$acc;
-				dict = $temp$dict;
-				continue foldl;
-			}
-		}
-	});
-var $elm$core$Dict$merge = F6(
-	function (leftStep, bothStep, rightStep, leftDict, rightDict, initialResult) {
-		var stepState = F3(
-			function (rKey, rValue, _v0) {
-				stepState:
-				while (true) {
-					var list = _v0.a;
-					var result = _v0.b;
-					if (!list.b) {
-						return _Utils_Tuple2(
-							list,
-							A3(rightStep, rKey, rValue, result));
-					} else {
-						var _v2 = list.a;
-						var lKey = _v2.a;
-						var lValue = _v2.b;
-						var rest = list.b;
-						if (_Utils_cmp(lKey, rKey) < 0) {
-							var $temp$rKey = rKey,
-								$temp$rValue = rValue,
-								$temp$_v0 = _Utils_Tuple2(
-								rest,
-								A3(leftStep, lKey, lValue, result));
-							rKey = $temp$rKey;
-							rValue = $temp$rValue;
-							_v0 = $temp$_v0;
-							continue stepState;
-						} else {
-							if (_Utils_cmp(lKey, rKey) > 0) {
-								return _Utils_Tuple2(
-									list,
-									A3(rightStep, rKey, rValue, result));
-							} else {
-								return _Utils_Tuple2(
-									rest,
-									A4(bothStep, lKey, lValue, rValue, result));
-							}
-						}
-					}
-				}
-			});
-		var _v3 = A3(
-			$elm$core$Dict$foldl,
-			stepState,
-			_Utils_Tuple2(
-				$elm$core$Dict$toList(leftDict),
-				initialResult),
-			rightDict);
-		var leftovers = _v3.a;
-		var intermediateResult = _v3.b;
-		return A3(
-			$elm$core$List$foldl,
-			F2(
-				function (_v4, result) {
-					var k = _v4.a;
-					var v = _v4.b;
-					return A3(leftStep, k, v, result);
-				}),
-			intermediateResult,
-			leftovers);
-	});
-var $elm$core$Platform$sendToSelf = _Platform_sendToSelf;
-var $elm$time$Time$setInterval = _Time_setInterval;
-var $elm$core$Process$spawn = _Scheduler_spawn;
-var $elm$time$Time$spawnHelp = F3(
-	function (router, intervals, processes) {
-		if (!intervals.b) {
-			return $elm$core$Task$succeed(processes);
-		} else {
-			var interval = intervals.a;
-			var rest = intervals.b;
-			var spawnTimer = $elm$core$Process$spawn(
-				A2(
-					$elm$time$Time$setInterval,
-					interval,
-					A2($elm$core$Platform$sendToSelf, router, interval)));
-			var spawnRest = function (id) {
-				return A3(
-					$elm$time$Time$spawnHelp,
-					router,
-					rest,
-					A3($elm$core$Dict$insert, interval, id, processes));
-			};
-			return A2($elm$core$Task$andThen, spawnRest, spawnTimer);
-		}
-	});
-var $elm$time$Time$onEffects = F3(
-	function (router, subs, _v0) {
-		var processes = _v0.processes;
-		var rightStep = F3(
-			function (_v6, id, _v7) {
-				var spawns = _v7.a;
-				var existing = _v7.b;
-				var kills = _v7.c;
-				return _Utils_Tuple3(
-					spawns,
-					existing,
-					A2(
-						$elm$core$Task$andThen,
-						function (_v5) {
-							return kills;
-						},
-						$elm$core$Process$kill(id)));
-			});
-		var newTaggers = A3($elm$core$List$foldl, $elm$time$Time$addMySub, $elm$core$Dict$empty, subs);
-		var leftStep = F3(
-			function (interval, taggers, _v4) {
-				var spawns = _v4.a;
-				var existing = _v4.b;
-				var kills = _v4.c;
-				return _Utils_Tuple3(
-					A2($elm$core$List$cons, interval, spawns),
-					existing,
-					kills);
-			});
-		var bothStep = F4(
-			function (interval, taggers, id, _v3) {
-				var spawns = _v3.a;
-				var existing = _v3.b;
-				var kills = _v3.c;
-				return _Utils_Tuple3(
-					spawns,
-					A3($elm$core$Dict$insert, interval, id, existing),
-					kills);
-			});
-		var _v1 = A6(
-			$elm$core$Dict$merge,
-			leftStep,
-			bothStep,
-			rightStep,
-			newTaggers,
-			processes,
-			_Utils_Tuple3(
-				_List_Nil,
-				$elm$core$Dict$empty,
-				$elm$core$Task$succeed(_Utils_Tuple0)));
-		var spawnList = _v1.a;
-		var existingDict = _v1.b;
-		var killTask = _v1.c;
-		return A2(
-			$elm$core$Task$andThen,
-			function (newProcesses) {
-				return $elm$core$Task$succeed(
-					A2($elm$time$Time$State, newTaggers, newProcesses));
-			},
-			A2(
-				$elm$core$Task$andThen,
-				function (_v2) {
-					return A3($elm$time$Time$spawnHelp, router, spawnList, existingDict);
-				},
-				killTask));
-	});
-var $elm$time$Time$onSelfMsg = F3(
-	function (router, interval, state) {
-		var _v0 = A2($elm$core$Dict$get, interval, state.taggers);
-		if (_v0.$ === 'Nothing') {
-			return $elm$core$Task$succeed(state);
-		} else {
-			var taggers = _v0.a;
-			var tellTaggers = function (time) {
-				return $elm$core$Task$sequence(
-					A2(
-						$elm$core$List$map,
-						function (tagger) {
-							return A2(
-								$elm$core$Platform$sendToApp,
-								router,
-								tagger(time));
-						},
-						taggers));
-			};
-			return A2(
-				$elm$core$Task$andThen,
-				function (_v1) {
-					return $elm$core$Task$succeed(state);
-				},
-				A2($elm$core$Task$andThen, tellTaggers, $elm$time$Time$now));
-		}
-	});
-var $elm$time$Time$subMap = F2(
-	function (f, _v0) {
-		var interval = _v0.a;
-		var tagger = _v0.b;
-		return A2(
-			$elm$time$Time$Every,
-			interval,
-			A2($elm$core$Basics$composeL, f, tagger));
-	});
-_Platform_effectManagers['Time'] = _Platform_createManager($elm$time$Time$init, $elm$time$Time$onEffects, $elm$time$Time$onSelfMsg, 0, $elm$time$Time$subMap);
-var $elm$time$Time$subscription = _Platform_leaf('Time');
-var $elm$time$Time$every = F2(
-	function (interval, tagger) {
-		return $elm$time$Time$subscription(
-			A2($elm$time$Time$Every, interval, tagger));
-	});
-var $author$project$Main$subscriptions = function (_v0) {
-	return A2($elm$time$Time$every, 1000, $author$project$Main$ReceiveTick);
-};
-var $author$project$Main$ClickActionButton = {$: 'ClickActionButton'};
 var $elm$html$Html$button = _VirtualDom_node('button');
 var $elm$html$Html$div = _VirtualDom_node('div');
-var $elm$core$String$concat = function (strings) {
-	return A2($elm$core$String$join, '', strings);
+var $elm$virtual_dom$VirtualDom$keyedNode = function (tag) {
+	return _VirtualDom_keyedNode(
+		_VirtualDom_noScript(tag));
 };
-var $elm$core$String$cons = _String_cons;
-var $elm$core$String$fromChar = function (_char) {
-	return A2($elm$core$String$cons, _char, '');
-};
-var $elm$core$Bitwise$and = _Bitwise_and;
-var $elm$core$Bitwise$shiftRightBy = _Bitwise_shiftRightBy;
-var $elm$core$String$repeatHelp = F3(
-	function (n, chunk, result) {
-		return (n <= 0) ? result : A3(
-			$elm$core$String$repeatHelp,
-			n >> 1,
-			_Utils_ap(chunk, chunk),
-			(!(n & 1)) ? result : _Utils_ap(result, chunk));
-	});
-var $elm$core$String$repeat = F2(
-	function (n, chunk) {
-		return A3($elm$core$String$repeatHelp, n, chunk, '');
-	});
-var $elm$core$String$padLeft = F3(
-	function (n, _char, string) {
-		return _Utils_ap(
-			A2(
-				$elm$core$String$repeat,
-				n - $elm$core$String$length(string),
-				$elm$core$String$fromChar(_char)),
-			string);
-	});
-var $elm$time$Time$flooredDiv = F2(
-	function (numerator, denominator) {
-		return $elm$core$Basics$floor(numerator / denominator);
-	});
-var $elm$core$Basics$modBy = _Basics_modBy;
-var $elm$time$Time$posixToMillis = function (_v0) {
-	var millis = _v0.a;
-	return millis;
-};
-var $elm$time$Time$toAdjustedMinutesHelp = F3(
-	function (defaultOffset, posixMinutes, eras) {
-		toAdjustedMinutesHelp:
-		while (true) {
-			if (!eras.b) {
-				return posixMinutes + defaultOffset;
-			} else {
-				var era = eras.a;
-				var olderEras = eras.b;
-				if (_Utils_cmp(era.start, posixMinutes) < 0) {
-					return posixMinutes + era.offset;
-				} else {
-					var $temp$defaultOffset = defaultOffset,
-						$temp$posixMinutes = posixMinutes,
-						$temp$eras = olderEras;
-					defaultOffset = $temp$defaultOffset;
-					posixMinutes = $temp$posixMinutes;
-					eras = $temp$eras;
-					continue toAdjustedMinutesHelp;
-				}
-			}
-		}
-	});
-var $elm$time$Time$toAdjustedMinutes = F2(
-	function (_v0, time) {
-		var defaultOffset = _v0.a;
-		var eras = _v0.b;
-		return A3(
-			$elm$time$Time$toAdjustedMinutesHelp,
-			defaultOffset,
-			A2(
-				$elm$time$Time$flooredDiv,
-				$elm$time$Time$posixToMillis(time),
-				60000),
-			eras);
-	});
-var $elm$time$Time$toHour = F2(
-	function (zone, time) {
-		return A2(
-			$elm$core$Basics$modBy,
-			24,
-			A2(
-				$elm$time$Time$flooredDiv,
-				A2($elm$time$Time$toAdjustedMinutes, zone, time),
-				60));
-	});
-var $elm$time$Time$toMinute = F2(
-	function (zone, time) {
-		return A2(
-			$elm$core$Basics$modBy,
-			60,
-			A2($elm$time$Time$toAdjustedMinutes, zone, time));
-	});
-var $elm$time$Time$toSecond = F2(
-	function (_v0, time) {
-		return A2(
-			$elm$core$Basics$modBy,
-			60,
-			A2(
-				$elm$time$Time$flooredDiv,
-				$elm$time$Time$posixToMillis(time),
-				1000));
-	});
-var $author$project$Main$formatTime = F2(
-	function (zone, time) {
-		return $elm$core$String$concat(
-			_List_fromArray(
-				[
-					A3(
-					$elm$core$String$padLeft,
-					2,
-					_Utils_chr('0'),
-					$elm$core$String$fromInt(
-						A2($elm$time$Time$toHour, zone, time))),
-					':',
-					A3(
-					$elm$core$String$padLeft,
-					2,
-					_Utils_chr('0'),
-					$elm$core$String$fromInt(
-						A2($elm$time$Time$toMinute, zone, time))),
-					':',
-					A3(
-					$elm$core$String$padLeft,
-					2,
-					_Utils_chr('0'),
-					$elm$core$String$fromInt(
-						A2($elm$time$Time$toSecond, zone, time)))
-				]));
-	});
+var $elm$html$Html$Keyed$node = $elm$virtual_dom$VirtualDom$keyedNode;
 var $elm$virtual_dom$VirtualDom$Normal = function (a) {
 	return {$: 'Normal', a: a};
 };
@@ -6769,12 +6628,18 @@ var $elm$html$Html$Events$onClick = function (msg) {
 		'click',
 		$elm$json$Json$Decode$succeed(msg));
 };
-var $elm$html$Html$pre = _VirtualDom_node('pre');
-var $elm$html$Html$span = _VirtualDom_node('span');
 var $elm$virtual_dom$VirtualDom$style = _VirtualDom_style;
 var $elm$html$Html$Attributes$style = $elm$virtual_dom$VirtualDom$style;
 var $elm$virtual_dom$VirtualDom$text = _VirtualDom_text;
 var $elm$html$Html$text = $elm$virtual_dom$VirtualDom$text;
+var $author$project$Advanced$Resource$toList = function (_v0) {
+	var resource = _v0.a;
+	return resource.list;
+};
+var $author$project$Advanced$Resource$toString = function (_v0) {
+	var n = _v0.a;
+	return $elm$core$String$fromInt(n);
+};
 var $elm$json$Json$Encode$string = _Json_wrap;
 var $elm$html$Html$Attributes$stringProperty = F2(
 	function (key, string) {
@@ -6784,121 +6649,269 @@ var $elm$html$Html$Attributes$stringProperty = F2(
 			$elm$json$Json$Encode$string(string));
 	});
 var $elm$html$Html$Attributes$type_ = $elm$html$Html$Attributes$stringProperty('type');
-var $author$project$Main$pageHome = F2(
-	function (log, home) {
-		return {
-			body: _List_fromArray(
-				[
-					A2(
-					$elm$html$Html$div,
-					_List_fromArray(
-						[
-							A2($elm$html$Html$Attributes$style, 'padding', '0.3em'),
-							A2($elm$html$Html$Attributes$style, 'margin', '0')
-						]),
-					_List_fromArray(
-						[
-							A2(
-							$elm$html$Html$div,
-							_List_fromArray(
-								[
-									A2($elm$html$Html$Attributes$style, 'padding', '0.3em'),
-									A2($elm$html$Html$Attributes$style, 'margin', '0')
-								]),
-							_List_fromArray(
-								[
-									A2(
-									$elm$html$Html$span,
-									_List_Nil,
-									_List_fromArray(
-										[
-											$elm$html$Html$text(
-											'Current time: ' + A2($author$project$Main$formatTime, home.zone, home.time))
-										]))
-								])),
-							A2(
-							$elm$html$Html$div,
-							_List_fromArray(
-								[
-									A2($elm$html$Html$Attributes$style, 'padding', '0.3em'),
-									A2($elm$html$Html$Attributes$style, 'margin', '0')
-								]),
-							_List_fromArray(
-								[
-									A2(
-									$elm$html$Html$pre,
-									_List_fromArray(
-										[
-											A2($elm$html$Html$Attributes$style, 'padding', '0.6em'),
-											A2($elm$html$Html$Attributes$style, 'margin', '0'),
-											A2($elm$html$Html$Attributes$style, 'max-width', '18em'),
-											A2($elm$html$Html$Attributes$style, 'height', '10em'),
-											A2($elm$html$Html$Attributes$style, 'overflow-y', 'auto'),
-											A2($elm$html$Html$Attributes$style, 'border', 'solid black 1px')
-										]),
-									_List_fromArray(
-										[
-											$elm$html$Html$text(log)
-										]))
-								])),
-							home.showActionButton ? A2(
-							$elm$html$Html$div,
-							_List_fromArray(
-								[
-									A2($elm$html$Html$Attributes$style, 'padding', '0.3em'),
-									A2($elm$html$Html$Attributes$style, 'margin', '0')
-								]),
-							_List_fromArray(
-								[
-									A2(
-									$elm$html$Html$button,
-									_List_fromArray(
-										[
-											$elm$html$Html$Attributes$type_('button'),
-											$elm$html$Html$Events$onClick($author$project$Main$ClickActionButton)
-										]),
-									_List_fromArray(
-										[
-											$elm$html$Html$text('Action')
-										]))
-								])) : $elm$html$Html$text('')
-						]))
-				]),
-			title: 'Home - Sample application'
-		};
+var $author$project$Advanced$GoatCard$ChangeName = function (a) {
+	return {$: 'ChangeName', a: a};
+};
+var $author$project$Advanced$GoatCard$ClickCancel = {$: 'ClickCancel'};
+var $author$project$Advanced$GoatCard$ClickSave = {$: 'ClickSave'};
+var $elm$html$Html$input = _VirtualDom_node('input');
+var $elm$json$Json$Decode$field = _Json_decodeField;
+var $elm$json$Json$Decode$at = F2(
+	function (fields, decoder) {
+		return A3($elm$core$List$foldr, $elm$json$Json$Decode$field, decoder, fields);
 	});
-var $author$project$Main$pageLoading = {
-	body: _List_fromArray(
-		[
-			A2(
-			$elm$html$Html$div,
-			_List_fromArray(
-				[
-					A2($elm$html$Html$Attributes$style, 'padding', '0.6em'),
-					A2($elm$html$Html$Attributes$style, 'margin', '0')
-				]),
-			_List_fromArray(
-				[
-					$elm$html$Html$text('Loading...')
-				]))
-		]),
-	title: 'Loading - Sample application'
+var $elm$json$Json$Decode$string = _Json_decodeString;
+var $elm$html$Html$Events$targetValue = A2(
+	$elm$json$Json$Decode$at,
+	_List_fromArray(
+		['target', 'value']),
+	$elm$json$Json$Decode$string);
+var $elm_community$html_extra$Html$Events$Extra$onChange = function (onChangeAction) {
+	return A2(
+		$elm$html$Html$Events$on,
+		'change',
+		A2($elm$json$Json$Decode$map, onChangeAction, $elm$html$Html$Events$targetValue));
 };
-var $author$project$Main$view = function (shared) {
-	var _v0 = shared.page;
-	if (_v0.$ === 'PageLoading') {
-		return $author$project$Main$pageLoading;
-	} else {
-		var home = _v0.a;
-		return A2($author$project$Main$pageHome, shared.log, home);
-	}
+var $elm$html$Html$span = _VirtualDom_node('span');
+var $elm$html$Html$Attributes$value = $elm$html$Html$Attributes$stringProperty('value');
+var $author$project$Advanced$GoatCard$editModeView = function (form) {
+	return A2(
+		$elm$html$Html$div,
+		_List_fromArray(
+			[
+				A2($elm$html$Html$Attributes$style, 'border', 'solid #333 2px'),
+				A2($elm$html$Html$Attributes$style, 'border-radius', '0.2em')
+			]),
+		_List_fromArray(
+			[
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						A2($elm$html$Html$Attributes$style, 'display', 'inline-block')
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$span,
+						_List_fromArray(
+							[
+								A2($elm$html$Html$Attributes$style, 'padding', '0.4em')
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text('name:')
+							])),
+						A2(
+						$elm$html$Html$input,
+						_List_fromArray(
+							[
+								A2($elm$html$Html$Attributes$style, 'margin', '0.4em'),
+								$elm_community$html_extra$Html$Events$Extra$onChange($author$project$Advanced$GoatCard$ChangeName),
+								$elm$html$Html$Attributes$value(form.name)
+							]),
+						_List_Nil)
+					])),
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						A2($elm$html$Html$Attributes$style, 'display', 'inline-block')
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								A2($elm$html$Html$Attributes$style, 'padding', '0.4em'),
+								A2($elm$html$Html$Attributes$style, 'display', 'inline-block')
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$elm$html$Html$button,
+								_List_fromArray(
+									[
+										A2($elm$html$Html$Attributes$style, 'padding', '0.4em'),
+										$elm$html$Html$Attributes$type_('button'),
+										$elm$html$Html$Events$onClick($author$project$Advanced$GoatCard$ClickCancel)
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('Cancel')
+									])),
+								A2(
+								$elm$html$Html$button,
+								_List_fromArray(
+									[
+										A2($elm$html$Html$Attributes$style, 'padding', '0.4em'),
+										$elm$html$Html$Attributes$type_('button'),
+										$elm$html$Html$Events$onClick($author$project$Advanced$GoatCard$ClickSave)
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('Save')
+									]))
+							]))
+					]))
+			]));
 };
-var $author$project$Main$main = $author$project$Thread$Browser$document(
-	{init: $author$project$Main$init, procedure: $author$project$Main$procedure, subscriptions: $author$project$Main$subscriptions, view: $author$project$Main$view});
-_Platform_export({'Main':{'init':$author$project$Main$main(
+var $author$project$Advanced$GoatCard$ClickEdit = {$: 'ClickEdit'};
+var $author$project$Advanced$GoatCard$ClickRemove = {$: 'ClickRemove'};
+var $elm$virtual_dom$VirtualDom$attribute = F2(
+	function (key, value) {
+		return A2(
+			_VirtualDom_attribute,
+			_VirtualDom_noOnOrFormAction(key),
+			_VirtualDom_noJavaScriptOrHtmlUri(value));
+	});
+var $elm$html$Html$Attributes$attribute = $elm$virtual_dom$VirtualDom$attribute;
+var $elm$html$Html$Attributes$tabindex = function (n) {
+	return A2(
+		_VirtualDom_attribute,
+		'tabIndex',
+		$elm$core$String$fromInt(n));
+};
+var $author$project$Advanced$GoatCard$savedModeView = function (saved) {
+	return A2(
+		$elm$html$Html$div,
+		_List_fromArray(
+			[
+				A2($elm$html$Html$Attributes$style, 'border', 'solid #333 2px'),
+				A2($elm$html$Html$Attributes$style, 'border-radius', '0.2em'),
+				A2($elm$html$Html$Attributes$style, 'padding', '0.4em'),
+				A2($elm$html$Html$Attributes$style, 'min-width', '16em')
+			]),
+		_List_fromArray(
+			[
+				A2(
+				$elm$html$Html$div,
+				_List_Nil,
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								A2($elm$html$Html$Attributes$style, 'text-align', 'right'),
+								A2($elm$html$Html$Attributes$style, 'color', '#733')
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$elm$html$Html$span,
+								_List_fromArray(
+									[
+										A2($elm$html$Html$Attributes$style, 'padding', '0.4em'),
+										A2($elm$html$Html$Attributes$style, 'text-decoration', 'underline'),
+										A2($elm$html$Html$Attributes$style, 'cursor', 'pointer'),
+										$elm$html$Html$Attributes$tabindex(0),
+										A2($elm$html$Html$Attributes$attribute, 'role', 'button'),
+										$elm$html$Html$Events$onClick($author$project$Advanced$GoatCard$ClickEdit)
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('edit')
+									])),
+								A2(
+								$elm$html$Html$span,
+								_List_fromArray(
+									[
+										A2($elm$html$Html$Attributes$style, 'padding', '0.4em'),
+										A2($elm$html$Html$Attributes$style, 'text-decoration', 'underline'),
+										A2($elm$html$Html$Attributes$style, 'cursor', 'pointer'),
+										$elm$html$Html$Attributes$tabindex(0),
+										A2($elm$html$Html$Attributes$attribute, 'role', 'button'),
+										$elm$html$Html$Events$onClick($author$project$Advanced$GoatCard$ClickRemove)
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('remove')
+									]))
+							])),
+						A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								A2($elm$html$Html$Attributes$style, 'padding', '0.4em')
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text('name: ' + saved.name)
+							]))
+					]))
+			]));
+};
+var $author$project$Advanced$GoatCard$view = function (_v0) {
+	var shared = _v0.a;
+	return shared.onEditing ? $author$project$Advanced$GoatCard$editModeView(shared.form) : $author$project$Advanced$GoatCard$savedModeView(shared.saved);
+};
+var $author$project$Advanced$view = function (shared) {
+	return {
+		body: _List_fromArray(
+			[
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						A2($elm$html$Html$Attributes$style, 'display', 'inline-block'),
+						A2($elm$html$Html$Attributes$style, 'padding', '0.4em'),
+						A2($elm$html$Html$Attributes$style, 'margin', '0')
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								A2($elm$html$Html$Attributes$style, 'padding', '0.4em')
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$elm$html$Html$button,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$type_('button'),
+										$elm$html$Html$Events$onClick($author$project$Advanced$ClickAddGoatCard)
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('Add new card')
+									]))
+							])),
+						A3(
+						$elm$html$Html$Keyed$node,
+						'div',
+						_List_fromArray(
+							[
+								A2($elm$html$Html$Attributes$style, 'padding', '0.4em')
+							]),
+						A2(
+							$elm$core$List$map,
+							function (_v0) {
+								var rid = _v0.a;
+								var goatCard = _v0.b;
+								return _Utils_Tuple2(
+									$author$project$Advanced$Resource$toString(rid),
+									A2(
+										$elm$html$Html$map,
+										$author$project$Advanced$GoatCardGlobal(rid),
+										$author$project$Advanced$GoatCard$view(goatCard)));
+							},
+							$author$project$Advanced$Resource$toList(shared.cards)))
+					]))
+			]),
+		title: 'Advanced sample app'
+	};
+};
+var $author$project$Advanced$main = $author$project$Thread$Browser$document(
+	{init: $author$project$Advanced$init, procedure: $author$project$Advanced$procedure, subscriptions: $author$project$Advanced$subscriptions, view: $author$project$Advanced$view});
+_Platform_export({'Advanced':{'init':$author$project$Advanced$main(
 	$elm$json$Json$Decode$succeed(_Utils_Tuple0))(0)}});}(this));
 
-  var app = Elm.Main.init({ node: document.getElementById("elm") });
+  var app = Elm.Advanced.init({ node: document.getElementById("elm") });
 }
 catch (e)
 {

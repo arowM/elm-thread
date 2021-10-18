@@ -54,6 +54,9 @@ suite =
         forkedThreadId6 =
             ThreadId.inc forkedThreadId5
 
+        forkedThreadId7 =
+            ThreadId.inc forkedThreadId6
+
         receiveThreadEvent =
             Internal.runWithMsg
                 (Internal.threadEvent mainThreadId (L <| Local1 "hi"))
@@ -161,6 +164,24 @@ suite =
                 (Internal.globalEvent (G <| Global1 "left"))
                 globalToSyncedThreads.newState
                 globalToSyncedThreads.next
+
+        cleanup2 =
+            Internal.runWithMsg
+                (Internal.globalEvent (G Global3))
+                globalToLeftThread.newState
+                globalToLeftThread.next
+
+        changeLogAfterModifyAndThen =
+            Internal.runWithMsg
+                (Internal.globalEvent (G Global3))
+                cleanup2.newState
+                cleanup2.next
+
+        checkPreviousLength =
+            Internal.runWithMsg
+                (Internal.threadEvent mainThreadId (L <| Local1 "hi"))
+                changeLogAfterModifyAndThen.newState
+                changeLogAfterModifyAndThen.next
     in
     describe "Test thread behaviour"
         [ test "A hack to avoid elm-review warnings" <|
@@ -361,7 +382,7 @@ Received Global1 in forked thread: FOO
                     { cmds = forkInFork.cmds
                     , newState = forkInFork.newState
                     }
-                    { cmds = [ ( forkedThreadId, C Cmd1 ) ]
+                    { cmds = [ ( mainThreadId, C Cmd2 ), ( forkedThreadId, C Cmd1 ) ]
                     , newState =
                         { shared = toParent """Evaluate sampleProcedure3.
 Evaluate sampleProcedure2.
@@ -429,6 +450,55 @@ sampleProcedure4.
 sampleProcedure4: left
 """
                         , nextThreadId = forkedThreadId6
+                        }
+                    }
+        , test "cleanup2" <|
+            \_ ->
+                Expect.equal
+                    { cmds = cleanup2.cmds
+                    , newState = cleanup2.newState
+                    }
+                    { cmds = []
+                    , newState =
+                        { shared = toParent """modifyAndThen
+"""
+                        , nextThreadId = forkedThreadId7
+                        }
+                    }
+        , test "changeLogAfterModifyAndThen" <|
+            \_ ->
+                Expect.equal
+                    { cmds = changeLogAfterModifyAndThen.cmds
+                    , newState = changeLogAfterModifyAndThen.newState
+                    }
+                    { cmds = []
+                    , newState =
+                        { shared = toParent """modifyAndThen
+sampleProcedure2.
+Evaluate sampleProcedure2.
+"""
+                        , nextThreadId = forkedThreadId7
+                        }
+                    }
+        , test "checkPreviousLength" <|
+            \_ ->
+                Expect.equal
+                    { cmds = checkPreviousLength.cmds
+                    , newState = checkPreviousLength.newState
+                    }
+                    { cmds = []
+                    , newState =
+                        let
+                            previousLog : String
+                            previousLog =
+                                "Evaluate sampleProcedure2.\n"
+                        in
+                        { shared = toParent <| """modifyAndThen
+sampleProcedure2.
+Evaluate sampleProcedure2.
+Previous log length: """ ++ String.fromInt (String.length previousLog) ++ """
+"""
+                        , nextThreadId = forkedThreadId7
                         }
                     }
         ]
@@ -603,6 +673,8 @@ sampleProcedure =
 
                     _ ->
                         Nothing
+
+        -- forkInFork
         , Internal.awaitGlobal <|
             \global _ ->
                 case global of
@@ -611,7 +683,10 @@ sampleProcedure =
 
                     _ ->
                         Nothing
+        , Internal.push <| \_ -> [ Cmd2 ]
         , Internal.fork <| \_ -> sampleProcedure3
+
+        -- globalToAllThread
         , Internal.awaitGlobal <|
             \global _ ->
                 case global of
@@ -624,6 +699,8 @@ sampleProcedure =
 
                     _ ->
                         Nothing
+
+        -- syncThreads
         , Internal.awaitGlobal <|
             \global _ ->
                 case global of
@@ -637,6 +714,33 @@ sampleProcedure =
             , sampleProcedure4
             ]
         , Internal.push <| \_ -> [ Cmd1 ]
+
+        -- globalToAllThread
+        , Internal.awaitGlobal <|
+            \global _ ->
+                case global of
+                    Global3 ->
+                        Just <| clearLog
+
+                    _ ->
+                        Nothing
+        , Internal.fork (\_ -> sampleProcedure2Infinite)
+        , Internal.modifyAndThen
+            (\shared ->
+                ( "modifyAndThen\n"
+                , String.length shared
+                )
+            )
+            (\n ->
+                Internal.await <|
+                    \local _ ->
+                        case local of
+                            Local1 _ ->
+                                Just <| putLog <| "Previous log length: " ++ String.fromInt n
+
+                            _ ->
+                                Nothing
+            )
         , Internal.quit
         , putLog "Unreachable"
         ]
@@ -663,6 +767,8 @@ anotherProcedure =
 
                     _ ->
                         Nothing
+
+        -- forkInFork
         , Internal.awaitGlobal <|
             \global _ ->
                 case global of
@@ -680,6 +786,8 @@ sampleProcedure2 : Procedure LocalCmd Shared Global Local
 sampleProcedure2 =
     Internal.batch
         [ putLog "Evaluate sampleProcedure2."
+
+        -- globalToAllThread
         , Internal.awaitGlobal <|
             \global _ ->
                 case global of
@@ -693,8 +801,11 @@ sampleProcedure2 =
 
 sampleProcedure3 : Procedure LocalCmd Shared Global Local
 sampleProcedure3 =
+    -- forkInFork
     Internal.batch
         [ putLog "Evaluate sampleProcedure3."
+
+        -- globalToAllThread
         , Internal.awaitGlobal <|
             \global _ ->
                 case global of
@@ -729,4 +840,12 @@ sampleProcedure4 =
                     _ ->
                         Nothing
         , Internal.push <| \_ -> [ Cmd2 ]
+        ]
+
+
+sampleProcedure2Infinite : Procedure LocalCmd Shared Global Local
+sampleProcedure2Infinite =
+    Internal.batch
+        [ sampleProcedure2
+        , Internal.lazy (\_ -> sampleProcedure2Infinite)
         ]
