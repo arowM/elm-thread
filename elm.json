@@ -3,7 +3,7 @@
     "name": "arowM/elm-thread",
     "summary": "Translate chronological specifications verbatim into applications.",
     "license": "MIT",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "exposed-modules": [
         "Thread.Procedure",
         "Thread.Browser",
