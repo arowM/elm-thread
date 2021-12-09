@@ -3,125 +3,94 @@ module SPA exposing (..)
 import SPA.Page.Home as Home
 import SPA.Page.Users as Users
 import Thread.Lifter exposing (Lifter)
-import Thread.Procedure as Procedure exposing (Procedure)
+import Thread.Procedure as Procedure exposing (Block, Procedure)
 import Thread.Wrapper exposing (Wrapper)
 
 
 
--- Shared
+-- Memory
 
 
-type alias Shared =
-    { home : Home.Shared
-    , users : Users.Shared
+type alias Memory =
+    { home : Home.Memory
+    , users : Users.Memory
     }
 
 
-init : Shared
+init : Memory
 init =
     { home = Home.init
     , users = Users.init
     }
 
 
-homeLifter : Lifter Shared Home.Shared
+homeLifter : Lifter Memory Home.Memory
 homeLifter =
-    { get = .home
+    { get = .home >> Just
     , set = \home shared -> { shared | home = home }
     }
 
 
-usersLifter : Lifter Shared Users.Shared
+usersLifter : Lifter Memory Users.Memory
 usersLifter =
-    { get = .users
+    { get = .users >> Just
     , set = \users shared -> { shared | users = users }
     }
 
 
 
--- Global
+-- Event
 
 
-type Global
-    = GlobalEvent1
-    | HomeGlobal Home.Global
-    | UsersGlobal Users.Global
+type Event
+    = Event1
+    | HomeEvent Home.Event
+    | UsersEvent Users.Event
 
 
-unwrapHomeGlobal : Global -> Maybe Home.Global
-unwrapHomeGlobal global =
-    case global of
-        HomeGlobal home ->
-            Just home
+homeWrapper : Wrapper Event Home.Event
+homeWrapper =
+    { unwrap =
+        \event ->
+            case event of
+                HomeEvent home ->
+                    Just home
 
-        _ ->
-            Nothing
-
-
-unwrapUsersGlobal : Global -> Maybe Users.Global
-unwrapUsersGlobal global =
-    case global of
-        UsersGlobal users ->
-            Just users
-
-        _ ->
-            Nothing
+                _ ->
+                    Nothing
+    , wrap = HomeEvent
+    }
 
 
+usersWrapper : Wrapper Event Users.Event
+usersWrapper =
+    { unwrap =
+        \event ->
+            case event of
+                UsersEvent users ->
+                    Just users
 
--- Local
-
-
-type Local
-    = LocalEvent1
-    | HomeLocal Home.Local
-    | UsersLocal Users.Local
-
-
-unwrapHomeLocal : Local -> Maybe Home.Local
-unwrapHomeLocal local =
-    case local of
-        HomeLocal home ->
-            Just home
-
-        _ ->
-            Nothing
-
-
-unwrapUsersLocal : Local -> Maybe Users.Local
-unwrapUsersLocal local =
-    case local of
-        UsersLocal users ->
-            Just users
-
-        _ ->
-            Nothing
+                _ ->
+                    Nothing
+    , wrap = UsersEvent
+    }
 
 
 
 -- Procedure
 
 
-procedure : Procedure Shared Global Local
-procedure =
-    Procedure.batch
-        [ Procedure.fork <|
-            \() ->
-                Home.procedure
-                    |> Procedure.liftShared homeLifter
-                    |> Procedure.wrapGlobal unwrapHomeGlobal
-                    |> Procedure.wrapLocal
-                        { wrap = HomeLocal
-                        , unwrap = unwrapHomeLocal
-                        }
-        , Procedure.fork <|
-            \() ->
-                Users.procedure
-                    |> Procedure.liftShared usersLifter
-                    |> Procedure.wrapGlobal unwrapUsersGlobal
-                    |> Procedure.wrapLocal
-                        { wrap = UsersLocal
-                        , unwrap = unwrapUsersLocal
-                        }
-        , Debug.todo "subsequent procedures..."
-        ]
+procedures : Block Memory Event
+procedures _ =
+    [ Procedure.async
+        (Home.procedures
+            |> Procedure.liftBlock homeLifter
+            |> Procedure.wrapBlock homeWrapper
+        )
+    , Procedure.async
+        (Users.procedures
+            |> Procedure.liftBlock usersLifter
+            |> Procedure.wrapBlock usersWrapper
+        )
+    , Debug.todo "subsequent procedures..."
+    ]

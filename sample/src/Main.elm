@@ -1,4 +1,4 @@
-module Main exposing (Global, Local, PageView, Shared, main)
+module Main exposing (Event, Memory, PageView, main)
 
 import Html
 import Html.Attributes as Attributes exposing (style)
@@ -6,46 +6,41 @@ import Html.Events as Events
 import Process
 import Task
 import Thread.Browser as Browser exposing (Document, Program)
-import Thread.Procedure as Procedure
+import Thread.Procedure as Procedure exposing (Block, Procedure)
 import Time exposing (Posix)
 
 
-main : Program () Shared Global Local
+main : Program () Memory Event
 main =
     Browser.document
         { init = init
-        , procedure = procedure
-        , view = view
-        , subscriptions = subscriptions
+        , procedures = procedures
+        , view = Browser.globalDocument view
+        , subscriptions = Browser.globalSubscriptions subscriptions
         }
 
 
 {-| The memory state shared by all threads.
 -}
-type alias Shared =
+type alias Memory =
     { log : String
     , page : PageView
     }
 
 
-init : Shared
+init : Memory
 init =
     { log = ""
     , page = PageLoading
     }
 
 
-{-| Global events
+{-| Events that only affect a specific thread.
 -}
-type Global
+type Event
     = ReceiveTick Posix
     | ClickActionButton
-
-
-{-| Local events that only affect a specific thread.
--}
-type Local
-    = ReceiveInitialTime ( Time.Zone, Posix )
+    | ReceiveInitialTime ( Time.Zone, Posix )
     | WakeUp
 
 
@@ -58,19 +53,19 @@ type PageView
     | PageHome PageHome_
 
 
-view : Shared -> Document Global
-view shared =
-    case shared.page of
+view : Memory -> Document Event
+view memory =
+    case memory.page of
         PageLoading ->
             pageLoading
 
         PageHome home ->
-            pageHome shared.log home
+            pageHome memory.log home
 
 
-pageLoading : Document Global
+pageLoading : Document msg
 pageLoading =
-    { title = "Loading - Sample application"
+    { title = "Sample application -- Loading"
     , body =
         [ Html.div
             [ style "padding" "0.6em"
@@ -89,9 +84,9 @@ type alias PageHome_ =
     }
 
 
-pageHome : String -> PageHome_ -> Document Global
+pageHome : String -> PageHome_ -> Document Event
 pageHome log home =
-    { title = "Home - Sample application"
+    { title = "Sample application -- Home"
     , body =
         [ Html.div
             [ style "padding" "0.3em"
@@ -113,7 +108,7 @@ pageHome log home =
                     [ style "padding" "0.6em"
                     , style "margin" "0"
                     , style "max-width" "18em"
-                    , style "height" "10em"
+                    , style "height" "16em"
                     , style "overflow-y" "auto"
                     , style "border" "solid black 1px"
                     ]
@@ -161,7 +156,7 @@ formatTime zone time =
 -- Subsctiption
 
 
-subscriptions : Shared -> Sub Global
+subscriptions : Memory -> Sub Event
 subscriptions _ =
     Time.every 1000 ReceiveTick
 
@@ -170,96 +165,104 @@ subscriptions _ =
 -- Procedure
 
 
-type alias Procedure =
-    Procedure.Procedure Shared Global Local
+procedures : () -> Block Memory Event
+procedures () _ =
+    [ sleep 2000
+    , requestInitialTime
+    , Procedure.await <|
+        \event _ ->
+            case event of
+                ReceiveInitialTime ( zone, time ) ->
+                    [ setPageView <|
+                        PageHome
+                            { zone = zone
+                            , time = time
+                            , showActionButton = False
+                            }
+                    ]
 
+                _ ->
+                    []
+    , putLog "Asynchronous thread for clock..."
+    , Procedure.async clockProcedures
+    , modifyPageHome <| \home -> { home | showActionButton = True }
+    , putLog """Press "Action" button bellow."""
+    , Procedure.await <|
+        \event _ ->
+            case event of
+                ClickActionButton ->
+                    [ modifyPageHome <| \home -> { home | showActionButton = False }
+                    , putLog """"Action" button has pressed."""
+                    ]
 
-procedure : () -> Procedure
-procedure () =
-    Procedure.batch
-        [ sleep 3000
-        , requestInitialTime
-        , Procedure.await <|
-            \local _ ->
-                case local of
-                    ReceiveInitialTime ( zone, time ) ->
-                        Just <|
-                            setPageView <|
-                                PageHome
-                                    { zone = zone
-                                    , time = time
-                                    , showActionButton = False
-                                    }
-
-                    _ ->
-                        Nothing
-        , putLog "Forking thread for clock..."
-        , Procedure.fork <| \_ -> clockProcedure
-        , modifyPageHome <| \home -> { home | showActionButton = True }
-        , putLog """Press "Action" button bellow."""
-        , Procedure.awaitGlobal <|
-            \global _ ->
-                case global of
-                    ClickActionButton ->
-                        Just <|
-                            Procedure.batch
-                                [ modifyPageHome <| \home -> { home | showActionButton = False }
-                                , putLog """"Action" button has pressed."""
-                                ]
-
-                    _ ->
-                        Nothing
-        , Procedure.syncAll
-            [ sleepProcedure1
-            , sleepProcedure2
-            ]
-        , putLog "All child threads have completed."
-        , Procedure.quit
-        , putLog "(Unreachable)"
+                _ ->
+                    []
+    , Procedure.sync
+        [ sleepProcedures1
+        , sleepProcedures2
         ]
+    , putLog "All child threads are complete."
+    , modifyPageHome <| \home -> { home | showActionButton = True }
+    , putLog """Press "Action" button bellow."""
+    , Procedure.await <|
+        \event _ ->
+            case event of
+                ClickActionButton ->
+                    [ modifyPageHome <| \home -> { home | showActionButton = False }
+                    , putLog """"Action" button has pressed."""
+                    ]
 
-
-clockProcedure : Procedure
-clockProcedure =
-    Procedure.batch
-        [ Procedure.awaitGlobal <|
-            \global _ ->
-                case global of
-                    ReceiveTick time ->
-                        Just <|
-                            modifyPageHome <|
-                                \home ->
-                                    { home | time = time }
-
-                    _ ->
-                        Nothing
-        , Procedure.fork <| \_ -> clockProcedure
+                _ ->
+                    []
+    , Procedure.race
+        [ sleepProcedures1
+        , sleepProcedures2
         ]
+    , putLog "One of the child threads is complete."
+
+    -- Avoid to quit, so that clockProcedures does not end.
+    , Procedure.await <| \_ _ -> []
+    ]
 
 
-sleepProcedure1 : Procedure
-sleepProcedure1 =
-    Procedure.batch
-        [ putLog "Sleep 5 sec."
-        , sleep 5000
-        , putLog "Slept 5 sec."
-        ]
+clockProcedures : Block Memory Event
+clockProcedures _ =
+    [ Procedure.await <|
+        \event _ ->
+            case event of
+                ReceiveTick time ->
+                    [ modifyPageHome <|
+                        \home ->
+                            { home | time = time }
+                    ]
+
+                _ ->
+                    []
+    , Procedure.jump clockProcedures
+    ]
 
 
-sleepProcedure2 : Procedure
-sleepProcedure2 =
-    Procedure.batch
-        [ putLog "Sleep 10 sec."
-        , sleep 10000
-        , putLog "Slept 10 sec."
-        ]
+sleepProcedures1 : Block Memory Event
+sleepProcedures1 _ =
+    [ putLog "Sleep 5 sec."
+    , sleep 5000
+    , putLog "Slept 5 sec."
+    ]
+
+
+sleepProcedures2 : Block Memory Event
+sleepProcedures2 _ =
+    [ putLog "Sleep 10 sec."
+    , sleep 10000
+    , putLog "Slept 10 sec."
+    ]
 
 
 
 -- -- Helper procedures
 
 
-requestInitialTime : Procedure
+requestInitialTime : Procedure Memory Event
 requestInitialTime =
     Procedure.push <|
         \_ ->
@@ -267,41 +270,43 @@ requestInitialTime =
                 |> Task.perform ReceiveInitialTime
 
 
-setPageView : PageView -> Procedure
+setPageView : PageView -> Procedure Memory Event
 setPageView page =
-    Procedure.modify <| \shared -> { shared | page = page }
+    Procedure.modify <| \memory -> { memory | page = page }
 
 
-putLog : String -> Procedure
+putLog : String -> Procedure Memory Event
 putLog log =
-    Procedure.modify <| \shared -> { shared | log = shared.log ++ log ++ "\n" }
+    Procedure.modify <| \memory -> { memory | log = memory.log ++ log ++ "\n" }
 
 
-modifyPageHome : (PageHome_ -> PageHome_) -> Procedure
+modifyPageHome : (PageHome_ -> PageHome_) -> Procedure Memory Event
 modifyPageHome f =
     Procedure.modify <|
-        \shared ->
-            case shared.page of
+        \memory ->
+            case memory.page of
                 PageHome home ->
-                    { shared | page = PageHome <| f home }
+                    { memory | page = PageHome <| f home }
 
                 _ ->
-                    shared
+                    memory
 
 
-sleep : Float -> Procedure
+sleep : Float -> Procedure Memory Event
 sleep msec =
-    Procedure.batch
-        [ Procedure.push <|
-            \_ ->
-                Process.sleep msec
-                    |> Task.perform (\() -> WakeUp)
-        , Procedure.await <|
-            \local _ ->
-                case local of
-                    WakeUp ->
-                        Just Procedure.none
+    Procedure.block <|
+        \_ ->
+            [ Procedure.push <|
+                \_ ->
+                    Process.sleep msec
+                        |> Task.perform (\() -> WakeUp)
+            , Procedure.await <|
+                \event _ ->
+                    case event of
+                        WakeUp ->
+                            [ Procedure.none
+                            ]
 
-                    _ ->
-                        Nothing
-        ]
+                        _ ->
+                            []
+            ]

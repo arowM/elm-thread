@@ -1,29 +1,37 @@
 module Thread.Procedure exposing
     ( Procedure
     , batch
+    , ThreadId
+    , stringifyThreadId
+    , Block
     , none
     , modify
     , push
     , await
-    , awaitGlobal
-    , fork
-    , syncAll
+    , async
+    , block
+    , sync
+    , race
     , quit
+    , jump
+    , doUntil
+    , addFinalizer
     , modifyAndThen
-    , lazy
-    , liftShared
-    , wrapLocal
-    , wrapGlobal
-    , elementView
-    , documentView
+    , when
+    , unless
+    , withMemory
+    , lift
+    , wrap
+    , liftBlock
+    , wrapBlock
     , init
+    , initThreadId
     , update
-    , subscriptions
-    , onUrlRequest
-    , onUrlChange
     , Model
+    , extractMemory
     , Msg
-    , globalEvent
+    , mapMsg
+    , setTarget
     )
 
 {-|
@@ -33,6 +41,9 @@ module Thread.Procedure exposing
 
 @docs Procedure
 @docs batch
+@docs ThreadId
+@docs stringifyThreadId
+@docs Block
 
 
 # Constructors
@@ -41,238 +52,433 @@ module Thread.Procedure exposing
 @docs modify
 @docs push
 @docs await
-@docs awaitGlobal
-@docs fork
-@docs syncAll
+@docs async
+@docs block
+@docs sync
+@docs race
 @docs quit
-
-
-# Advanced constructors
-
+@docs jump
+@docs doUntil
+@docs addFinalizer
 @docs modifyAndThen
-@docs lazy
+
+
+# Conditions
+
+@docs when
+@docs unless
+@docs withMemory
 
 
 # Converters
 
-These items are needed when you try to build a hierarchy of shared memory and events in an SPA.
+These items are needed when you try to build a hierarchy of memory and events in an SPA.
+
+These items are used to build memory and event hierarchies, for example in SPAs.
 Note that the pattern often unnecessarily increases complexity, so you should first consider using monolithic shared memory and events.
 
-For a sample, see [`sample/src/SPA.elm`](https://github.com/arowM/elm-thread/tree/main/sample/src).
+For a sample, see [`sample/src/Advanced.elm`](https://github.com/arowM/elm-thread/tree/main/sample/src) and [`sample/src/SPA.elm`](https://github.com/arowM/elm-thread/tree/main/sample/src).
 
-@docs liftShared
-@docs wrapLocal
-@docs wrapGlobal
+@docs lift
+@docs wrap
+@docs liftBlock
+@docs wrapBlock
 
 
 # Lower level functions
 
 It is recommended to use `Thread.Browser` for normal use.
 
-@docs elementView
-@docs documentView
 @docs init
+@docs initThreadId
 @docs update
-@docs subscriptions
-@docs onUrlRequest
-@docs onUrlChange
 @docs Model
+@docs extractMemory
 @docs Msg
-@docs globalEvent
+@docs mapMsg
+@docs setTarget
 
 -}
 
-import Browser exposing (Document)
-import Html exposing (Html)
 import Internal
-import Internal.ThreadId exposing (ThreadId)
+import Internal.ThreadId as ThreadId
 import Thread.Lifter exposing (Lifter)
 import Thread.Wrapper exposing (Wrapper)
-import Url exposing (Url)
 
 
 {-| Procedures to be processed in a thread.
 
-  - shared: Shared memory
-  - global: Global events
-  - local: Local events that only affect on the forked thread itself
+  - memory: State shared between threads.
+  - event: Message generated and received only within specific threads.
 
 -}
-type Procedure shared global local
-    = Procedure (Internal.Procedure (Cmd local) shared global local)
+type Procedure memory event
+    = Procedure (Internal.Procedure (Cmd (Internal.Msg event)) memory event)
 
 
 {-| Construct a `Procedure` instance that do nothing.
 -}
-none : Procedure shared global local
+none : Procedure memory event
 none =
     Procedure Internal.none
 
 
 {-| Batch `Procedure`s together. The elements are evaluated in order.
 -}
-batch : List (Procedure shared global local) -> Procedure shared global local
+batch : List (Procedure memory event) -> Procedure memory event
 batch procs =
     List.map (\(Procedure proc) -> proc) procs
         |> Internal.batch
         |> Procedure
 
 
+{-| An identifier for a thread.
+-}
+type ThreadId
+    = ThreadId ThreadId.ThreadId
+
+
+{-| Convert `ThreadId` into `String`.
+
+Different `ThreadId`s will be converted to different strings, and the same `ThreadId`s will always be converted to the same string.
+
+-}
+stringifyThreadId : ThreadId -> String
+stringifyThreadId (ThreadId tid) =
+    ThreadId.toString tid
+
+
+{-| An alias for a bunch of `Procedure`s.
+-}
+type alias Block memory event =
+    ThreadId -> List (Procedure memory event)
+
+
 {-| Construct a `Procedure` instance that modifies shared memory state.
 
-The update operation, passed as the first argument, is performed atomically. It means the state of shared memory read by a particular thread with `modify` is not updated by another thread until it is updated by the thread.
+Note that the update operation, passed as the first argument, is performed atomically. It means the state of shared memory read by a particular thread with `modify` is not updated by another thread until it is updated by the thread.
 
 -}
-modify : (shared -> shared) -> Procedure shared global local
+modify : (memory -> memory) -> Procedure memory event
 modify f =
-    Procedure <| Internal.modify f
+    Procedure <|
+        Internal.modify <|
+            \_ memory ->
+                f memory
 
 
-{-| Construct a `Procedure` instance that pushes a local `Cmd`.
+{-| Construct a `Procedure` instance that issues a `Cmd` directed to the thread on which this function is evaluated.
 -}
-push : (shared -> Cmd local) -> Procedure shared global local
+push : (memory -> Cmd event) -> Procedure memory event
 push f =
-    Procedure <| Internal.push (f >> List.singleton)
+    Procedure <|
+        Internal.push <|
+            \tid memory ->
+                f memory
+                    |> Cmd.map (Internal.setTarget tid)
+                    |> List.singleton
 
 
 {-| Construct a `Procedure` instance that awaits the local events for the thread.
 
-If it returns `Nothing`, it awaits again.
+If it returns empty list, it awaits again.
 Otherwise, it evaluates the given `Procedure`.
 
 Note1: The shared memory state passed to the first argument function may become outdated during running the thread for the `Procedure` generated by that function, so it is safe to use this shared memory state only to determine whether to accept or miss events.
 
-Note2: Technically, all the `modify` `push` `fork` written before the `await` will be executed internally as a single operation. This avoids the situation where a local event triggered by a `push` occurs while processing tons of subsequent `modify`s and `push`s, thus ensuring that the `await` always can catch the local event caused by the previous `Procedure`s.
+Note2: Technically, all the `modify` `push` `async` written before the `await` will be executed internally as a single operation. This avoids the situation where a local event triggered by a `push` occurs while processing tons of subsequent `modify`s and `push`s, thus ensuring that the `await` always can catch the local event caused by the previous `Procedure`s.
 
-Note3: `push`s written before an `await` will not necessarily cause local events in the order written. For example, if the first `push` sends a request to the server and it fires a local event with its result, and the second `push` sleeps for 0.1 seconds and then returns a local event, the first local event can fire later if the server is slow to respond. To avoid this situation, after using one `push`, catch it with `await` and use the next `push`, or use `syncAll`.
+Note3: `push`s written before an `await` will not necessarily cause local events in the order written. For example, if the first `push` sends a request to the server and it fires a local event with its result, and the second `push` sleeps for 0.1 seconds and then returns a local event, the first local event can fire later if the server is slow to respond. To avoid this situation, after using one `push`, catch it with `await` and use the next `push`, or use `sync`.
 
 -}
-await : (local -> shared -> Maybe (Procedure shared global local)) -> Procedure shared global local
+await : (event -> memory -> List (Procedure memory event)) -> Procedure memory event
 await f =
     Procedure <|
         Internal.await <|
-            \local shared ->
-                f local shared
-                    |> Maybe.map (\(Procedure proc) -> proc)
+            \local memory ->
+                case f local memory of
+                    [] ->
+                        Nothing
+
+                    ps ->
+                        List.map (\(Procedure proc) -> proc) ps
+                            |> Internal.batch
+                            |> Just
 
 
-{-| Construct a `Procedure` instance that awaits global events.
+{-| Construct a `Procedure` instance that evaluates the given `Block` in the asynchronous thread.
 
-If it returns `Nothing`, it awaits again.
-Otherwise, it evaluates the given `Procedure`.
+The asynchronous thread is provided new `ThreadId` and runs independently of the original thread; therefore the subsequent `Procedure`s in the original thread are evaluated immediately, and the asynchronous thread is cancelled when the original thread ends.
 
-Note that the shared memory state passed to the first argument function may become outdated during running the thread for the `Procedure` generated by that function, so it is safe to use this shared memory state only to determine whether to accept or miss events.
-
--}
-awaitGlobal : (global -> shared -> Maybe (Procedure shared global local)) -> Procedure shared global local
-awaitGlobal f =
-    Procedure <|
-        Internal.awaitGlobal <|
-            \global shared ->
-                f global shared
-                    |> Maybe.map (\(Procedure proc) -> proc)
-
-
-{-| Construct a `Procedure` instance that evaluates the given `Procedure` in a forked thread.
-
-The forked thread runs independently of the original thread.
-i.e., The subsequent `Procedure`s in the original thread are evaluated immediately.
+Infinite recursion by giving itself as the argument to `async` is not recommended to prevent threads from overgrowing. Use `jump` if you want to create threads that never end.
 
 -}
-fork : (() -> Procedure shared global local) -> Procedure shared global local
-fork f =
+async : Block memory event -> Procedure memory event
+async f =
     Procedure <|
-        Internal.fork <|
-            \a ->
-                f a
+        Internal.async <|
+            \tid ->
+                f (ThreadId tid)
+                    |> batch
                     |> (\(Procedure proc) -> proc)
 
 
-{-| Construct a `Procedure` instance that wait for all given `Procedure`s to be completed.
+{-| Construct a `Procedure` instance that wait for the given `Procedure` to be completed.
 
-Given `Procedure`s are evaluated in the independent thread, but the subsequent `Procedure`s in the original thread are **not** evaluated immediately.
+Given `Procedure` is evaluated in the independent threads with new `ThreadId`, but the subsequent `Procedure`s in the original thread are **not** evaluated immediately. For example, the following sleep function uses `block` to scope the `WakeUp` event so that it only affects the inside of the `sleep` function.
+
+    import Process
+    import Task
+    import Thread.Procedure as Procedure exposing (Procedure)
+
+    sleep : Float -> Procedure Memory Event
+    sleep msec =
+        Procedure.block <|
+            \_ ->
+                [ Procedure.push <|
+                    \_ ->
+                        Process.sleep msec
+                            |> Task.perform (\() -> WakeUp)
+                , Procedure.await <|
+                    \event _ ->
+                        case event of
+                            WakeUp ->
+                                [ Procedure.none
+                                ]
+
+                            _ ->
+                                []
+                ]
+
+Infinite recursion by giving itself as the argument to `async` is not recommended to prevent threads from overgrowing. Use `jump` if you want to create threads that never end.
 
 -}
-syncAll : List (Procedure shared global local) -> Procedure shared global local
-syncAll procs =
-    List.map (\(Procedure proc) -> proc) procs
-        |> Internal.syncAll
+block : Block memory event -> Procedure memory event
+block f =
+    sync [ f ]
+
+
+{-| Construct a `Procedure` instance that wait for all the given `Block`s to be completed.
+
+Each `Block` is evaluated in the independent threads with its own `ThreadId`, but the subsequent `Procedure`s in the original thread are **not** evaluated immediately, but wait for all the given `Block`s to be completed.
+
+-}
+sync : List (Block memory event) -> Procedure memory event
+sync fs =
+    List.map
+        (\f tid ->
+            let
+                (Procedure proc) =
+                    f (ThreadId tid)
+                        |> batch
+            in
+            proc
+        )
+        fs
+        |> Internal.sync
+        |> Procedure
+
+
+{-| Construct a `Procedure` instance that wait for one of the given `Block`s to be completed.
+
+Each `Block` is evaluated in the independent thread with its own `ThreadId`, but the subsequent `Procedure`s in the original thread are **not** evaluated immediately, but wait for one of the given `Block`s to be completed.
+
+Note1: If one of the threads exits, all other threads will be suspended after processing until the next `await`.
+
+-}
+race : List (Block memory event) -> Procedure memory event
+race fs =
+    List.map
+        (\f tid ->
+            let
+                (Procedure proc) =
+                    f (ThreadId tid)
+                        |> batch
+            in
+            proc
+        )
+        fs
+        |> Internal.race
         |> Procedure
 
 
 {-| Quit the thread immediately.
 
-Subsequent `Procedures` are not evaluated and are discarded.
+Subsequent `Procedure`s are not evaluated and are discarded.
 
 -}
-quit : Procedure shared global local
+quit : Procedure memory event
 quit =
     Procedure Internal.quit
 
 
+{-| For a thread running this `Procedure`, add a finalizer: `Procedure`s to be evaluated when the thread is terminated, such as when the last `Procedure` for the thread has finished to be evaluated, or when the thread is interrupted by `quit` or `race`, or the parent thread ends by such reasons.
 
--- Advanced constructors
-
-
-{-| Modify the shared memory atomically, creating the intermediate value in the process, and pass the value to another `Procedure`.
-
-The intermediate value is supposed to be the identifier of the certain resource at a particular time.
-e.g., In an application that allows the user to select and edit the goat profile from a list of goat profiles, the information about "which goat was selected" can be the intermediate value.
-
-For a sample, see [`sample/src/Advanced.elm`](https://github.com/arowM/elm-thread/tree/main/sample/src) and its [live demo](https://arowm.github.io/elm-thread/advanced.html).
+Since `addFinally` **appends** the finalizer, it is especially important to note that if you use `addFinally` in a thread that self-recurses with `turn`, the finalizer will be executed as many times as it self-recurses.
 
 -}
-modifyAndThen : (shared -> ( shared, x )) -> (x -> Procedure shared global local) -> Procedure shared global local
+addFinalizer : Block memory event -> Procedure memory event
+addFinalizer f =
+    Procedure <|
+        Internal.addFinalizer <|
+            \tid ->
+                let
+                    (Procedure proc) =
+                        f (ThreadId tid) |> batch
+                in
+                proc
+
+
+{-| Modify the shared memory atomically, creating the intermediate value in the process, and pass the value to the another `Block` in the original thread.
+
+The intermediate value is supposed to be the information of the certain resource at a particular time.
+
+-}
+modifyAndThen : (memory -> ( memory, x )) -> (x -> Block memory event) -> Procedure memory event
 modifyAndThen f g =
     Procedure <|
-        Internal.modifyAndThen f <|
-            \x ->
-                g x
+        Internal.modifyAndThen (\_ memory -> f memory) <|
+            \tid x ->
+                g x (ThreadId tid)
+                    |> batch
                     |> (\(Procedure proc) -> proc)
 
 
-{-| Sometimes you have `Procedure` with recursive structure, like awaiting events again.
-You can use `lazy` to make sure your procedure unrolls lazily.
+{-| Ignore subsequent `Procedure`s, and evaluate given `Block` in the current thread. It is convenient for following two situations.
 
-    procedure : Procedure Shared Global Local
-    procedure =
-        Procedure.batch
-            [ putLog "Thread started."
-            , Procedure.await <|
-                \global _ ->
-                    case global of
-                        ChangeInput str ->
-                            Just <|
-                                Procedure.batch
-                                    [ Procedure.modify <|
-                                        \shared ->
-                                            { shared | input = str }
-                                    , Procedure.lazy <| \_ -> procedure
-                                    ]
 
-                        ClickSave ->
-                            Just <|
-                                Procedure.modify <|
-                                    \shared ->
-                                        { shared
-                                            | input = ""
-                                            , saved = shared.saved ++ [ shared.input ]
-                                        }
+## Make recursive Block
 
-                        _ ->
-                            Nothing
-            ]
+Calling itself in the `Block` will result in a compile error; The `jump` avoids it to makes the recursive `Block`.
 
-You can use `fork` for a similar purpose, but whereas `fork` creates a new thread for the given `Procedure` and the original thread proceeds immediately to the next `Procedure`, `lazy` does the given `Procedure` in the original thread and then proceeds to the subsequent `Procedure` after it is finished.
-This property can be used to create threads that do not complete until the user input is complete. In combination with `modifyAndThen`, such threads are convenient for resource management. See [`sample/src/Advanced.elm`](https://github.com/arowM/elm-thread/tree/main/sample/src) and its [live demo](https://arowm.github.io/elm-thread/advanced.html) for more information.
+    import Thread.Procedure as Procedure exposing (Block)
+    import Time exposing (Posix)
+
+    clockProcedures : Block Memory Event
+    clockProcedures tid =
+        [ Procedure.await <|
+            \event _ ->
+                case event of
+                    ReceiveTick time ->
+                        [ Procedure.modify <|
+                            \memory ->
+                                { memory | time = time }
+                        ]
+
+                    _ ->
+                        []
+        , Procedure.jump clockProcedures
+        ]
+
+You can use `block` or `async` for a similar purpose, but whereas they create new threads for the given `Block`; it causes threads overgrowing.
+
+
+## Safe pruning
+
+Sometimes you may want to handle errors as follows:
+
+    unsafePruning : Block Memory Event
+    unsafePruning tid =
+        [ requestPosts
+        , Procedure.await <|
+            \event _ ->
+                case event of
+                    ReceivePosts (Err error) ->
+                        [ handleError error tid
+                            |> Procedure.batch
+                        ]
+
+                    ReceivePosts (Ok posts) ->
+                        [ Procedure.modify <|
+                            \memory ->
+                                { memory | posts = posts }
+                        ]
+
+                    _ ->
+                        []
+        , Procedure.block blockForNewPosts
+        ]
+
+It appears to be nice, but it does not work as intended. Actually, the above `Block` can evaluate the `blockForNewPosts` even after evaluating `handleError`. To avoid this, you can use `jump`:
+
+    safePruning : Block Memory Event
+    safePruning tid =
+        [ requestPosts
+        , Procedure.await <|
+            \event _ ->
+                case event of
+                    ReceivePosts (Err error) ->
+                        [ Procedure.jump <| handleError error
+                        ]
+
+                    ReceivePosts (Ok posts) ->
+                        [ Procedure.modify <|
+                            \memory ->
+                                { memory | posts = posts }
+                        ]
+
+                    _ ->
+                        []
+        , Procedure.block blockForNewPosts
+        ]
 
 -}
-lazy : (() -> Procedure shared global local) -> Procedure shared global local
-lazy f =
+jump : Block memory event -> Procedure memory event
+jump f =
     Procedure <|
-        Internal.lazy <|
+        Internal.jump <|
+            \tid ->
+                f (ThreadId tid)
+                    |> batch
+                    |> (\(Procedure proc) -> proc)
+
+
+{-| Evaluate another `Block`, provided as a first argument, with new `ThreadId` until the second argument returns non-empty list.
+
+For example, you could use it to define a function that executes the `Block` for appropreate SPA page until the URL changes:
+
+    import Thread.Procedure as Procedure exposing (Block)
+    import Url exposing (Url)
+
+    pageController : Route -> Block Memory Event
+    pageController route tid =
+        [ Procedure.doUntil
+            -- The thread for the `pageProcedures` will be killed
+            -- when the URL canges.
+            (pageProcedures route)
+          <|
+            \event _ ->
+                case event of
+                    UrlChanged url ->
+                        [ Procedure.jump <| pageController (routeFromUrl url)
+                        ]
+
+                    _ ->
+                        []
+        ]
+
+-}
+doUntil : Block memory event -> (event -> memory -> List (Procedure memory event)) -> Procedure memory event
+doUntil blocker handler =
+    batch
+        [ async <|
             \_ ->
-                f () |> (\(Procedure proc) -> proc)
+                [ race
+                    [ \tid -> blocker tid
+                    , \_ ->
+                        [ await <|
+                            \event memory ->
+                                case handler event memory of
+                                    [] ->
+                                        []
+
+                                    _ ->
+                                        [ none ]
+                        ]
+                    ]
+                ]
+        , await handler
+        ]
 
 
 
@@ -280,131 +486,161 @@ lazy f =
 
 
 {-| -}
-type Model shared global local
-    = Model (Model_ shared global local)
+type Model memory event
+    = Model (Model_ memory event)
 
 
-type alias Model_ shared global local =
-    { thread : Internal.Thread (Cmd local) shared global local
-    , state : Internal.ThreadState shared
+type alias Model_ memory event =
+    { thread : Internal.Thread (Cmd (Internal.Msg event)) memory event
     }
 
 
 {-| -}
-elementView : (shared -> Html global) -> Model shared global local -> Html (Msg global local)
-elementView f (Model model) =
-    f model.state.shared
-        |> Html.map globalEvent
+extractMemory : Model memory event -> memory
+extractMemory (Model model) =
+    Internal.peekMemory model.thread
 
 
 {-| -}
-documentView : (shared -> Document global) -> Model shared global local -> Document (Msg global local)
-documentView f (Model model) =
+init : memory -> Block memory event -> ( Model memory event, Cmd (Msg event) )
+init memory f =
     let
-        doc =
-            f model.state.shared
-    in
-    { title = doc.title
-    , body =
-        doc.body
-            |> List.map (Html.map globalEvent)
-    }
+        (Procedure proc) =
+            f initThreadId |> batch
 
-
-{-| -}
-init : shared -> Procedure shared global local -> ( Model shared global local, Cmd (Msg global local) )
-init shared (Procedure proc) =
-    let
+        thread : Internal.Thread (Cmd (Internal.Msg event)) memory event
         thread =
-            Internal.fromProcedure proc
-
-        initialState =
-            Internal.initialState shared
-
-        cued =
-            Internal.cue initialState thread
+            Internal.fromProcedure memory proc
     in
     ( Model
-        { thread = cued.next
-        , state = cued.newState
+        { thread = thread
         }
-    , batchLocalCmds cued.cmds
+    , batchLocalCmds <| Internal.threadCmds thread
     )
 
 
-{-| -}
-type Msg global local
-    = Msg (Internal.Msg global local)
+{-| `ThreadId` for the initially loaded procedure.
+-}
+initThreadId : ThreadId
+initThreadId =
+    ThreadId ThreadId.init
 
 
 {-| -}
-globalEvent : global -> Msg global local
-globalEvent global =
-    Msg (Internal.globalEvent global)
+type Msg event
+    = Msg (Internal.Msg event)
 
 
 {-| -}
-onUrlRequest : (Browser.UrlRequest -> global) -> Browser.UrlRequest -> Msg global local
-onUrlRequest f req =
-    globalEvent <| f req
+mapMsg : (a -> b) -> Msg a -> Msg b
+mapMsg f (Msg msg) =
+    Msg <| Internal.mapMsg f msg
+
+
+{-| Set the target thread for an event by its `ThreadId`.
+-}
+setTarget : ThreadId -> event -> Msg event
+setTarget (ThreadId tid) event =
+    Msg (Internal.setTarget tid event)
 
 
 {-| -}
-onUrlChange : (Url -> global) -> Url -> Msg global local
-onUrlChange f url =
-    globalEvent <| f url
-
-
-{-| -}
-update : Msg global local -> Model shared global local -> ( Model shared global local, Cmd (Msg global local) )
+update : Msg event -> Model memory event -> ( Model memory event, Cmd (Msg event) )
 update (Msg msg) (Model model) =
     let
         res =
-            Internal.runWithMsg msg model.state model.thread
+            Internal.run msg model.thread
     in
     ( Model
-        { thread = res.next
-        , state = res.newState
+        { thread = res
         }
-    , batchLocalCmds res.cmds
+    , batchLocalCmds <| Internal.threadCmds res
     )
 
 
-batchLocalCmds : List ( ThreadId, Cmd local ) -> Cmd (Msg global local)
+batchLocalCmds : List ( ThreadId.ThreadId, Cmd (Internal.Msg event) ) -> Cmd (Msg event)
 batchLocalCmds cmds =
     cmds
-        |> List.map (\( tid, cmd ) -> Cmd.map (Msg << Internal.threadEvent tid) cmd)
+        |> List.map (\( _, cmd ) -> Cmd.map Msg cmd)
         |> Cmd.batch
 
 
-{-| -}
-subscriptions : (shared -> Sub global) -> Model shared global local -> Sub (Msg global local)
-subscriptions f (Model model) =
-    f model.state.shared
-        |> Sub.map globalEvent
+
+-- Conditions
+
+
+{-| Select a `Block` to run by the current memory state.
+
+Do not use the provided memory state in the `Block` in order to avoid using outdated memory state.
+
+-}
+withMemory : (memory -> Block memory event) -> Procedure memory event
+withMemory =
+    modifyAndThen (\memory -> ( memory, memory ))
+
+
+{-| Evaluate given `Procedure`s only if the first argument returns `True` with current memory state, otherwise returns `none`.
+-}
+when : (memory -> Bool) -> List (Procedure memory event) -> Procedure memory event
+when f ls =
+    withMemory <|
+        \memory ->
+            if f memory then
+                \_ -> ls
+
+            else
+                \_ -> []
+
+
+{-| Evaluate given `Procedure`s only if the first argument is `False` with current memory state, otherwise returns `none`.
+-}
+unless : (memory -> Bool) -> List (Procedure memory event) -> Procedure memory event
+unless f =
+    when (not << f)
 
 
 
 -- Converters
 
 
-{-| -}
-liftShared : Lifter a b -> Procedure b global local -> Procedure a global local
-liftShared lifter (Procedure proc) =
-    Internal.liftShared lifter proc
+{-| Lift the memory type of of the given `Procedure`.
+
+Note that this function does not set up a dedicated memory for `b`, but simply makes it operate on the part of memory `a`; so the memory `b` is shared with other threads.
+If you want to create a thread that allocates a dedicated memory area of type `b` for a given procedure, use functions in the [`Thread.LocalMemory` module](https://package.elm-lang.org/packages/arowM/elm-thread/latest/Thread-LocalMemory).
+
+-}
+lift : Lifter a b -> Procedure b event -> Procedure a event
+lift lifter (Procedure proc) =
+    Internal.liftMemory lifter proc
         |> Procedure
 
 
-{-| -}
-wrapLocal : Wrapper a b -> Procedure shared global b -> Procedure shared global a
-wrapLocal wrapper (Procedure proc) =
-    Internal.liftLocal wrapper.unwrap proc
-        |> Internal.mapLocalCmd (Cmd.map wrapper.wrap)
+{-| `Block` version of `liftMemory`.
+-}
+liftBlock :
+    Lifter a b
+    -> Block b event
+    -> Block a event
+liftBlock lifter f tid =
+    f tid
+        |> List.map (lift lifter)
+
+
+{-| Wrap the event type of the given `Procedure`.
+-}
+wrap : Wrapper a b -> Procedure memory b -> Procedure memory a
+wrap wrapper (Procedure proc) =
+    Internal.mapCmd (Cmd.map (Internal.mapMsg wrapper.wrap)) proc
+        |> Internal.liftEvent wrapper.unwrap
         |> Procedure
 
 
-{-| -}
-wrapGlobal : (a -> Maybe b) -> Procedure shared b local -> Procedure shared a local
-wrapGlobal unwrap (Procedure proc) =
-    Internal.liftGlobal unwrap proc
-        |> Procedure
+{-| Wrap the event type of the given `Block`.
+-}
+wrapBlock :
+    Wrapper a b
+    -> Block memory b
+    -> Block memory a
+wrapBlock wrapper f tid =
+    f tid
+        |> List.map (wrap wrapper)

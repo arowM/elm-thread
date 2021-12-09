@@ -19,7 +19,7 @@ $ npm run format
 ## Run doc server
 
 ```sh
-$ npm run start
+$ npm run start:prod
 ```
 
 ## Build sample app

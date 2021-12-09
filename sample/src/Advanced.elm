@@ -1,57 +1,52 @@
-module Advanced exposing (Global, Local, Shared, main)
+module Advanced exposing (Event, Memory, main)
 
 import Advanced.GoatCard as GoatCard
-import Advanced.Resource as Resource exposing (Resource)
 import Html
 import Html.Attributes as Attributes exposing (style)
 import Html.Events as Events
 import Html.Keyed as Keyed
 import Thread.Browser as Browser exposing (Document, Program)
-import Thread.Procedure as Procedure exposing (Procedure)
+import Thread.LocalMemory as LocalMemory exposing (LocalMemory)
+import Thread.Procedure as Procedure exposing (Block, Msg, ThreadId)
+import Thread.Wrapper exposing (Wrapper)
 
 
-main : Program () Shared Global Local
+main : Program () Memory Event
 main =
     Browser.document
         { init = init
-        , procedure = procedure
+        , procedures = procedures
         , view = view
-        , subscriptions = subscriptions
+        , subscriptions = Browser.globalSubscriptions subscriptions
         }
 
 
 {-| The memory state shared by all threads.
 -}
-type alias Shared =
-    { cards : Resource GoatCard.Shared
+type alias Memory =
+    { cards : LocalMemory GoatCard.Memory
     }
 
 
-init : Shared
+init : Memory
 init =
-    { cards = Resource.empty
+    { cards = LocalMemory.init
     }
 
 
-{-| Global events
+{-| Events that only affect a specific thread.
 -}
-type Global
-    = GoatCardGlobal Resource.Id GoatCard.Global
+type Event
+    = GoatCardEvent GoatCard.Event
     | ClickAddGoatCard
-
-
-{-| Local events that only affect a specific thread.
--}
-type Local
-    = GoatCardLocal Resource.Id GoatCard.Local
 
 
 
 -- View
 
 
-view : Shared -> Document Global
-view shared =
+view : ThreadId -> Memory -> Document (Msg Event)
+view tid shared =
     { title = "Advanced sample app"
     , body =
         [ Html.div
@@ -64,7 +59,10 @@ view shared =
                 ]
                 [ Html.button
                     [ Attributes.type_ "button"
-                    , Events.onClick ClickAddGoatCard
+                    , Events.onClick
+                        (ClickAddGoatCard
+                            |> Procedure.setTarget tid
+                        )
                     ]
                     [ Html.text "Add new card"
                     ]
@@ -72,14 +70,16 @@ view shared =
             , Keyed.node "div"
                 [ style "padding" "0.4em"
                 ]
-                (List.map
-                    (\( rid, goatCard ) ->
-                        ( Resource.toString rid
-                        , GoatCard.view goatCard
-                            |> Html.map (GoatCardGlobal rid)
+                (LocalMemory.toList shared.cards
+                    |> List.reverse
+                    |> List.map
+                        (\( rid, goatCard ) ->
+                            ( Procedure.stringifyThreadId rid
+                            , GoatCard.view goatCard
+                                |> Html.map
+                                    (Procedure.setTarget rid << GoatCardEvent)
+                            )
                         )
-                    )
-                    (Resource.toList shared.cards)
                 )
             ]
         ]
@@ -90,7 +90,7 @@ view shared =
 -- Subsctiption
 
 
-subscriptions : Shared -> Sub Global
+subscriptions : Memory -> Sub Event
 subscriptions _ =
     Sub.none
 
@@ -99,96 +99,37 @@ subscriptions _ =
 -- Procedure
 
 
-procedure : () -> Procedure Shared Global Local
-procedure () =
-    Procedure.batch
-        [ Procedure.awaitGlobal <|
-            \global _ ->
-                case global of
-                    ClickAddGoatCard ->
-                        Just <|
-                            Procedure.batch
-                                [ Procedure.modifyAndThen addGoatCardAnd <|
-                                    \rid ->
-                                        Procedure.batch
-                                            [ Procedure.fork <|
-                                                \_ ->
-                                                    Procedure.batch
-                                                        [ GoatCard.procedure
-                                                            |> fromGoatCardProcedure rid
+procedures : () -> Block Memory Event
+procedures () _ =
+    [ Procedure.await <|
+        \event _ ->
+            case event of
+                ClickAddGoatCard ->
+                    [ LocalMemory.asyncChild
+                        { get = .cards >> Just
+                        , set = \cards shared -> { shared | cards = cards }
+                        }
+                        GoatCard.init
+                        (GoatCard.procedures
+                            |> Procedure.wrapBlock goatCardWrapper
+                        )
+                    ]
 
-                                                        -- Whenever a GoatCard Procedure is completed,
-                                                        -- resources are released.
-                                                        , Procedure.modify <|
-                                                            \shared ->
-                                                                { shared | cards = Resource.remove rid shared.cards }
-                                                        ]
-                                            ]
-                                ]
-
-                    _ ->
-                        Nothing
-        , Procedure.lazy <| \_ -> procedure ()
-        ]
+                _ ->
+                    []
+    , Procedure.jump <| procedures ()
+    ]
 
 
-addGoatCardAnd : Shared -> ( Shared, Resource.Id )
-addGoatCardAnd shared =
-    let
-        ( rid, newCards ) =
-            Resource.push GoatCard.init shared.cards
-    in
-    ( { shared
-        | cards = newCards
-      }
-    , rid
-    )
+goatCardWrapper : Wrapper Event GoatCard.Event
+goatCardWrapper =
+    { unwrap =
+        \event ->
+            case event of
+                GoatCardEvent card ->
+                    Just card
 
-
-fromGoatCardProcedure : Resource.Id -> Procedure GoatCard.Shared GoatCard.Global GoatCard.Local -> Procedure Shared Global Local
-fromGoatCardProcedure target =
-    Procedure.liftShared
-        { get =
-            \shared ->
-                Resource.lookup target shared.cards
-                    |> Maybe.withDefault GoatCard.init
-        , set =
-            \new shared ->
-                { shared
-                    | cards =
-                        Resource.modify
-                            (\id a ->
-                                if id == target then
-                                    new
-
-                                else
-                                    a
-                            )
-                            shared.cards
-                }
-        }
-        >> Procedure.wrapLocal
-            { unwrap =
-                \local ->
-                    case local of
-                        GoatCardLocal id event ->
-                            if id == target then
-                                Just event
-
-                            else
-                                Nothing
-            , wrap = GoatCardLocal target
-            }
-        >> Procedure.wrapGlobal
-            (\global ->
-                case global of
-                    GoatCardGlobal id event ->
-                        if id == target then
-                            Just event
-
-                        else
-                            Nothing
-
-                    _ ->
-                        Nothing
-            )
+                _ ->
+                    Nothing
+    , wrap = GoatCardEvent
+    }

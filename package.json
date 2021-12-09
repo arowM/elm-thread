@@ -2,18 +2,18 @@
   "private": true,
   "scripts": {
     "format": "elm-format src dev/tests sample/src",
-    "start": "elm-doc-preview",
-    "start:dev": "cd dev && elm-doc-preview",
-    "start:sample": "cd sample && elm reactor",
-    "doc:sample": "cd sample && elm-doc-preview",
+    "start:prod": "elm-doc-preview --port=8010",
+    "start:dev": "cd dev && elm-doc-preview --port=8012",
+    "start:sample": "cd sample && elm reactor --port=8011",
+    "doc:sample": "cd sample && elm-doc-preview --port=8013",
     "build:sample": "rimraf docs/ && cd sample && elm make src/Main.elm --output=../docs/index.html && elm make src/Advanced.elm --output=../docs/advanced.html",
-    "review": "elm-review --fix",
+    "review:prod": "elm-review --fix",
     "review:dev": "cd dev && elm-review --fix",
     "review:sample": "cd sample && elm-review --fix --ignore-dirs=src/SPA --ignore-files=src/SPA.elm",
-    "test": "npm run test:pub && npm run test:dev && npm run test:sample",
-    "test:pub": "elm-review && elm-format --validate src && elm make --docs=/tmp/docs.json",
-    "test:dev": "cd dev && elm-review && elm-test && elm-format --validate src && elm make --docs=/tmp/docs.json",
-    "test:sample": "cd sample && elm-review --ignore-dirs=src/SPA --ignore-files=src/SPA.elm && elm-format --validate src && elm make src/Main.elm src/SPA.elm --output=/dev/null"
+    "test": "npm run test:prod && npm run test:dev && npm run test:sample",
+    "test:prod": "elm-review && elm-format --validate src && elm make --docs=/tmp/docs.json",
+    "test:dev": "cd dev && elm-review && elm-test && elm-format --validate src tests && elm make --docs=/tmp/docs.json",
+    "test:sample": "cd sample && elm-review --ignore-dirs=src/SPA --ignore-files=src/SPA.elm && elm-format --validate src && elm make src/Main.elm src/Advanced.elm src/SPA.elm --output=/dev/null"
   },
   "devDependencies": {
     "elm-doc-preview": "^5.0.3",

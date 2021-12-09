@@ -2,741 +2,847 @@ module InternalSuite exposing (suite)
 
 import Expect
 import Internal exposing (Lifter, Procedure)
-import Internal.ThreadId as ThreadId
+import Internal.ThreadId as ThreadId exposing (ThreadId)
 import Test exposing (Test, describe, test)
 
 
 suite : Test
 suite =
     let
-        sampleProcedure_ : Procedure ParentLocalCmd ParentShared ParentGlobal ParentLocal
-        sampleProcedure_ =
-            Internal.batch
-                [ Internal.push <| \_ -> [ C Cmd3 ]
-                , Internal.push <| \_ -> [ OtherLocalCmd ]
-                , sampleProcedure
-                    |> Internal.liftShared sharedLifter
-                    |> Internal.liftLocal mgetLocal
-                    |> Internal.liftGlobal mgetGlobal
-                    |> Internal.mapLocalCmd C
-                ]
-
-        thread =
-            Internal.fromProcedure sampleProcedure_
-
-        initialState =
-            Internal.initialState
-                { child = ""
-                , other = ()
-                }
-
-        cued =
-            Internal.cue initialState thread
-
         mainThreadId =
             ThreadId.init
 
-        forkedThreadId =
+        childThreadId =
             ThreadId.inc mainThreadId
 
-        forkedThreadId2 =
-            ThreadId.inc forkedThreadId
+        asyncInForkThreadId =
+            ThreadId.inc childThreadId
 
-        forkedThreadId3 =
-            ThreadId.inc forkedThreadId2
+        sample3ThreadId1 =
+            ThreadId.inc asyncInForkThreadId
 
-        forkedThreadId4 =
-            ThreadId.inc forkedThreadId3
+        forkInForkThreadId =
+            ThreadId.inc sample3ThreadId1
 
-        forkedThreadId5 =
-            ThreadId.inc forkedThreadId4
+        sample3ThreadId2 =
+            ThreadId.inc forkInForkThreadId
 
-        forkedThreadId6 =
-            ThreadId.inc forkedThreadId5
+        sample4ThreadId1 =
+            ThreadId.inc sample3ThreadId2
 
-        forkedThreadId7 =
-            ThreadId.inc forkedThreadId6
+        sample5ThreadId1 =
+            ThreadId.inc sample4ThreadId1
+
+        sample3ThreadId3 =
+            ThreadId.inc sample5ThreadId1
+
+        sample4ThreadId2 =
+            ThreadId.inc sample3ThreadId3
+
+        sample5ThreadId2 =
+            ThreadId.inc sample4ThreadId2
+
+        sample3ThreadId4 =
+            ThreadId.inc sample5ThreadId2
+
+        initialState =
+            { log = []
+            , childLog = []
+            }
+
+        thread =
+            Internal.fromProcedure initialState sampleProcedure
 
         receiveThreadEvent =
-            Internal.runWithMsg
-                (Internal.threadEvent mainThreadId (L <| Local1 "hi"))
-                cued.newState
-                cued.next
+            Internal.run
+                (Internal.setTarget mainThreadId (Event2 0))
+                thread
 
-        ignoreOtherLocalEvent =
-            Internal.runWithMsg
-                (Internal.threadEvent mainThreadId OtherLocal)
-                cued.newState
-                cued.next
+        ignoreUnconcernedThreadEvent =
+            Internal.run
+                (Internal.setTarget mainThreadId Unconcerned)
+                thread
 
         ignoreAnotherThreadEvent =
-            Internal.runWithMsg
-                (Internal.threadEvent (ThreadId.inc mainThreadId) (L <| Local1 "hi"))
-                cued.newState
-                cued.next
+            Internal.run
+                (Internal.setTarget childThreadId (Event2 0))
+                thread
 
-        ignoreGlobalEvent =
-            Internal.runWithMsg
-                (Internal.globalEvent (G <| Global1 "HI"))
-                cued.newState
-                cued.next
+        awaitAgainAfterUnconcernedThreadEvent =
+            Internal.run
+                (Internal.setTarget mainThreadId (Event2 1))
+                ignoreUnconcernedThreadEvent
 
-        receiveGlobalEvent =
-            Internal.runWithMsg
-                (Internal.globalEvent (G <| Global1 "HI"))
-                receiveThreadEvent.newState
-                receiveThreadEvent.next
+        awaitAgainAfterAnotherThreadEvent =
+            Internal.run
+                (Internal.setTarget mainThreadId (Event2 1))
+                ignoreAnotherThreadEvent
 
-        receiveAnotherGlobalEvent =
-            Internal.runWithMsg
-                (Internal.globalEvent <| G Global3)
-                receiveThreadEvent.newState
-                receiveThreadEvent.next
-
-        ignoreOtherGlobalEvent =
-            Internal.runWithMsg
-                (Internal.globalEvent OtherGlobal)
-                receiveThreadEvent.newState
-                receiveThreadEvent.next
+        receiveNextThreadEvent =
+            Internal.run
+                (Internal.setTarget mainThreadId (Event2 2))
+                receiveThreadEvent
 
         cleanup =
-            Internal.runWithMsg
-                (Internal.globalEvent <| G Global3)
-                receiveGlobalEvent.newState
-                receiveGlobalEvent.next
+            Internal.run
+                (Internal.setTarget mainThreadId Cleanup)
+                receiveNextThreadEvent
 
-        receiveForkedThreadEvent =
-            Internal.runWithMsg
-                (Internal.threadEvent forkedThreadId (L <| Local2 10))
-                cleanup.newState
-                cleanup.next
+        receiveChildEvent =
+            Internal.run
+                (Internal.setTarget mainThreadId (ChildEvent <| ChildEvent1 10))
+                cleanup
 
-        receiveMainThreadEvent =
-            Internal.runWithMsg
-                (Internal.threadEvent mainThreadId (L <| Local2 20))
-                cleanup.newState
-                cleanup.next
-
-        receiveGlobalEventOnForkedThread =
-            Internal.runWithMsg
-                (Internal.globalEvent (G <| Global1 "FOO"))
-                receiveForkedThreadEvent.newState
-                receiveForkedThreadEvent.next
-
-        receiveBothThreadEvent =
-            Internal.runWithMsg
-                (Internal.threadEvent forkedThreadId (L <| Local2 10))
-                receiveMainThreadEvent.newState
-                receiveMainThreadEvent.next
-
-        receiveGlobalEventOnBothThread =
-            Internal.runWithMsg
-                (Internal.globalEvent (G <| Global1 "FOO"))
-                receiveBothThreadEvent.newState
-                receiveBothThreadEvent.next
+        receiveInheritedEvent =
+            Internal.run
+                (Internal.setTarget mainThreadId (GlobalEvent "inherited"))
+                cleanup
 
         forkInFork =
-            Internal.runWithMsg
-                (Internal.globalEvent <| G Global3)
-                receiveGlobalEventOnBothThread.newState
-                receiveGlobalEventOnBothThread.next
+            Internal.run
+                (Internal.setTarget mainThreadId (GlobalEvent "cleanup"))
+                receiveInheritedEvent
 
         globalToAllThread =
-            Internal.runWithMsg
-                (Internal.globalEvent <| G Global3)
-                forkInFork.newState
-                forkInFork.next
+            Internal.run
+                (Internal.setTarget mainThreadId <| GlobalEvent "global to all")
+                forkInFork
+
+        receiveOnlyInChildThreads =
+            Internal.run
+                (Internal.setTarget childThreadId <| ChildEvent <| ChildEvent2 "only in child threads")
+                forkInFork
 
         syncThreads =
-            Internal.runWithMsg
-                (Internal.globalEvent <| G Global3)
-                globalToAllThread.newState
-                globalToAllThread.next
+            Internal.run
+                (Internal.setTarget mainThreadId Cleanup)
+                globalToAllThread
 
         globalToSyncedThreads =
-            Internal.runWithMsg
-                (Internal.globalEvent <| G Global3)
-                syncThreads.newState
-                syncThreads.next
+            Internal.run
+                (Internal.setTarget mainThreadId <| GlobalEvent "globalToSyncedThreads")
+                syncThreads
 
-        globalToLeftThread =
-            Internal.runWithMsg
-                (Internal.globalEvent (G <| Global1 "left"))
-                globalToSyncedThreads.newState
-                globalToSyncedThreads.next
+        receiveEvent2InLeftThread =
+            Internal.run
+                (Internal.setTarget mainThreadId (Event2 3))
+                globalToSyncedThreads
+
+        forkInSyncAlive =
+            Internal.run
+                (Internal.setTarget mainThreadId (Event1 "forkInSyncAlive"))
+                receiveEvent2InLeftThread
+
+        raceThreads =
+            Internal.run
+                (Internal.setTarget mainThreadId Cleanup)
+                forkInSyncAlive
+
+        globalToRacedThreads =
+            Internal.run
+                (Internal.setTarget mainThreadId <| GlobalEvent "globalToRacedThreads")
+                raceThreads
+
+        ignoreEvent2InCancelledThread =
+            Internal.run
+                (Internal.setTarget mainThreadId (Event2 13))
+                globalToRacedThreads
+
+        forkInRaceAlive =
+            Internal.run
+                (Internal.setTarget mainThreadId (Event1 "forkInRaceAlive"))
+                ignoreEvent2InCancelledThread
 
         cleanup2 =
-            Internal.runWithMsg
-                (Internal.globalEvent (G Global3))
-                globalToLeftThread.newState
-                globalToLeftThread.next
+            Internal.run
+                (Internal.setTarget mainThreadId Cleanup)
+                forkInRaceAlive
 
         changeLogAfterModifyAndThen =
-            Internal.runWithMsg
-                (Internal.globalEvent (G Global3))
-                cleanup2.newState
-                cleanup2.next
+            Internal.run
+                (Internal.setTarget mainThreadId (GlobalEvent "changeLog"))
+                cleanup2
 
         checkPreviousLength =
-            Internal.runWithMsg
-                (Internal.threadEvent mainThreadId (L <| Local1 "hi"))
-                changeLogAfterModifyAndThen.newState
-                changeLogAfterModifyAndThen.next
+            Internal.run
+                (Internal.setTarget mainThreadId (Event2 30))
+                changeLogAfterModifyAndThen
+
+        forkedThreadAlives =
+            Internal.run
+                (Internal.setTarget mainThreadId (GlobalEvent "alives"))
+                checkPreviousLength
     in
     describe "Test thread behaviour"
         [ test "A hack to avoid elm-review warnings" <|
             \_ ->
                 Expect.true "true"
-                    (case C Cmd3 of
-                        C Cmd3 ->
+                    (case ChildCmd ChildCmd1 of
+                        ChildCmd ChildCmd1 ->
                             True
 
                         _ ->
                             False
                     )
-        , test "cued" <|
+        , test "thread" <|
             \_ ->
-                Expect.equal
-                    { cmds = cued.cmds
-                    , newState = cued.newState
-                    }
-                    { cmds = [ ( mainThreadId, C Cmd3 ), ( mainThreadId, OtherLocalCmd ), ( mainThreadId, C Cmd1 ), ( mainThreadId, C Cmd2 ) ]
-                    , newState =
-                        { shared = toParent """Start a thread
-Cmd1 has pushed
-"""
-                        , nextThreadId = forkedThreadId
-                        }
+                Expect.equal (stateOf thread)
+                    { cmds = [ ( mainThreadId, Cmd1 ), ( mainThreadId, Cmd2 ) ]
+                    , log =
+                        [ log mainThreadId "Start a thread"
+                        , log mainThreadId "Cmd1 has pushed"
+                        ]
+                    , childLog = []
+                    , nextThreadId = childThreadId
                     }
         , test "receiveThreadEvent" <|
             \_ ->
-                Expect.equal
-                    { cmds = receiveThreadEvent.cmds
-                    , newState = receiveThreadEvent.newState
-                    }
+                Expect.equal (stateOf receiveThreadEvent)
                     { cmds = []
-                    , newState =
-                        { shared = toParent """Received Local1 message: hi
-"""
-                        , nextThreadId = forkedThreadId
-                        }
+                    , log =
+                        [ log mainThreadId "Received Event2 message: 0"
+                        ]
+                    , childLog = []
+                    , nextThreadId = childThreadId
                     }
-        , test "ignoreOtherLocalEvent" <|
+        , test "ignoreUnconcernedThreadEvent" <|
             \_ ->
-                Expect.equal
-                    { cmds = ignoreOtherLocalEvent.cmds
-                    , newState = ignoreOtherLocalEvent.newState
-                    }
+                Expect.equal (stateOf ignoreUnconcernedThreadEvent)
                     { cmds = []
-                    , newState =
-                        { shared = toParent """Start a thread
-Cmd1 has pushed
-"""
-                        , nextThreadId = forkedThreadId
-                        }
+                    , log =
+                        [ log mainThreadId "Start a thread"
+                        , log mainThreadId "Cmd1 has pushed"
+                        ]
+                    , childLog = []
+                    , nextThreadId = childThreadId
                     }
         , test "ignoreAnotherThreadEvent" <|
             \_ ->
-                Expect.equal
-                    { cmds = ignoreAnotherThreadEvent.cmds
-                    , newState = ignoreAnotherThreadEvent.newState
-                    }
+                Expect.equal (stateOf ignoreAnotherThreadEvent)
                     { cmds = []
-                    , newState =
-                        { shared = toParent """Start a thread
-Cmd1 has pushed
-"""
-                        , nextThreadId = forkedThreadId
-                        }
+                    , log =
+                        [ log mainThreadId "Start a thread"
+                        , log mainThreadId "Cmd1 has pushed"
+                        ]
+                    , childLog = []
+                    , nextThreadId = childThreadId
                     }
-        , test "ignoreGlobalEvent" <|
+        , test "awaitAgainAfterUnconcernedThreadEvent" <|
             \_ ->
-                Expect.equal
-                    { cmds = ignoreGlobalEvent.cmds
-                    , newState = ignoreGlobalEvent.newState
-                    }
+                Expect.equal (stateOf awaitAgainAfterUnconcernedThreadEvent)
                     { cmds = []
-                    , newState =
-                        { shared = toParent """Start a thread
-Cmd1 has pushed
-"""
-                        , nextThreadId = forkedThreadId
-                        }
+                    , log =
+                        [ log mainThreadId "Received Event2 message: 1"
+                        ]
+                    , childLog = []
+                    , nextThreadId = childThreadId
                     }
-        , test "receiveGlobalEvent" <|
+        , test "awaitAgainAfterAnotherThreadEvent" <|
             \_ ->
-                Expect.equal
-                    { cmds = receiveGlobalEvent.cmds
-                    , newState = receiveGlobalEvent.newState
-                    }
-                    { cmds = [ ( mainThreadId, C Cmd2 ), ( forkedThreadId, C Cmd2 ), ( mainThreadId, C Cmd1 ) ]
-                    , newState =
-                        { shared = toParent """Received Global1 message: HI
-This is evaluated immediately after await.
-Start forked thread.
-"""
-                        , nextThreadId = forkedThreadId2
-                        }
-                    }
-        , test "receiveAnotherGlobalEvent" <|
-            \_ ->
-                Expect.equal
-                    { cmds = receiveAnotherGlobalEvent.cmds
-                    , newState = receiveAnotherGlobalEvent.newState
-                    }
-                    { cmds = [ ( forkedThreadId, C Cmd2 ), ( mainThreadId, C Cmd1 ) ]
-                    , newState =
-                        { shared = toParent """Received Local1 message: hi
-This is evaluated immediately after await.
-Start forked thread.
-"""
-                        , nextThreadId = forkedThreadId2
-                        }
-                    }
-        , test "ignoreOtherGlobalEvent" <|
-            \_ ->
-                Expect.equal
-                    { cmds = ignoreOtherGlobalEvent.cmds
-                    , newState = ignoreOtherGlobalEvent.newState
-                    }
+                Expect.equal (stateOf awaitAgainAfterAnotherThreadEvent)
                     { cmds = []
-                    , newState =
-                        { shared = toParent """Received Local1 message: hi
-"""
-                        , nextThreadId = forkedThreadId
-                        }
+                    , log =
+                        [ log mainThreadId "Received Event2 message: 1"
+                        ]
+                    , childLog = []
+                    , nextThreadId = childThreadId
                     }
-        , test "receiveForkedThreadEvent" <|
+        , test "receiveNextThreadEvent" <|
             \_ ->
-                Expect.equal
-                    { cmds = receiveForkedThreadEvent.cmds
-                    , newState = receiveForkedThreadEvent.newState
+                Expect.equal (stateOf receiveNextThreadEvent)
+                    { cmds =
+                        [ ( mainThreadId, Cmd1 )
+                        , ( childThreadId, ChildCmd ChildCmd1 )
+                        ]
+                    , log =
+                        [ log mainThreadId "Received Event2 message: 0"
+                        , log mainThreadId "This is evaluated immediately after await."
+                        , log childThreadId <| startForkedThread childThreadId
+                        ]
+                    , childLog =
+                        [ log childThreadId "Child log."
+                        ]
+                    , nextThreadId = ThreadId.inc childThreadId
                     }
-                    { cmds = []
-                    , newState =
-                        { shared = toParent """Received Local2 in forked thread: 10
-"""
-                        , nextThreadId = forkedThreadId2
-                        }
-                    }
-        , test "receiveMainThreadEvent" <|
+        , test "cleanup" <|
             \_ ->
-                Expect.equal
-                    { cmds = receiveMainThreadEvent.cmds
-                    , newState = receiveMainThreadEvent.newState
-                    }
+                Expect.equal (stateOf cleanup)
                     { cmds = []
-                    , newState =
-                        { shared = toParent """Received Local2 in original thread: 20
-"""
-                        , nextThreadId = forkedThreadId2
-                        }
+                    , log = []
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc childThreadId
                     }
-        , test "receiveGlobalEventOnForkedThread" <|
+        , test "receiveChildEvent" <|
             \_ ->
-                Expect.equal
-                    { cmds = receiveGlobalEventOnForkedThread.cmds
-                    , newState = receiveGlobalEventOnForkedThread.newState
-                    }
+                Expect.equal (stateOf receiveChildEvent)
                     { cmds = []
-                    , newState =
-                        { shared = toParent """Received Local2 in forked thread: 10
-Received Global1 in forked thread: FOO
-"""
-                        , nextThreadId = forkedThreadId2
-                        }
+                    , log =
+                        [ log childThreadId "Received ChildEvent1 in forked thread: 10"
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc childThreadId
                     }
-        , test "receiveBothThreadEvent" <|
+        , test "receiveInheritedEvent" <|
             \_ ->
-                Expect.equal
-                    { cmds = receiveBothThreadEvent.cmds
-                    , newState = receiveBothThreadEvent.newState
-                    }
+                Expect.equal (stateOf receiveInheritedEvent)
                     { cmds = []
-                    , newState =
-                        { shared = toParent """Received Local2 in original thread: 20
-Received Local2 in forked thread: 10
-"""
-                        , nextThreadId = forkedThreadId2
-                        }
-                    }
-        , test "receiveGlobalEventOnBothThread" <|
-            \_ ->
-                Expect.equal
-                    { cmds = receiveGlobalEventOnBothThread.cmds
-                    , newState = receiveGlobalEventOnBothThread.newState
-                    }
-                    { cmds = []
-                    , newState =
-                        { shared = toParent """Received Local2 in original thread: 20
-Received Local2 in forked thread: 10
-Received Global1 in original thread: FOO
-Received Global1 in forked thread: FOO
-"""
-                        , nextThreadId = forkedThreadId2
-                        }
+                    , log =
+                        [ log mainThreadId "Received GlobalEvent in original thread: inherited"
+                        , log childThreadId "Received InheritedEvent in forked thread: inherited"
+                        , log asyncInForkThreadId "Evaluate asyncProcedure."
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc asyncInForkThreadId
                     }
         , test "forkInFork" <|
             \_ ->
-                Expect.equal
-                    { cmds = forkInFork.cmds
-                    , newState = forkInFork.newState
-                    }
-                    { cmds = [ ( mainThreadId, C Cmd2 ), ( forkedThreadId, C Cmd1 ) ]
-                    , newState =
-                        { shared = toParent """Evaluate sampleProcedure3.
-Evaluate sampleProcedure2.
-"""
-                        , nextThreadId = forkedThreadId4
-                        }
+                Expect.equal (stateOf forkInFork)
+                    { cmds = [ ( mainThreadId, Cmd2 ), ( childThreadId, ChildCmd ChildCmd2 ) ]
+                    , log =
+                        [ log sample3ThreadId1 <| evaluateSP3 sample3ThreadId1
+                        , log asyncInForkThreadId "asyncProcedure received InheritedEvent: cleanup."
+                        , log forkInForkThreadId "Evaluate sampleProcedure2."
+                        , log asyncInForkThreadId "asyncProcedure is cancelled."
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc forkInForkThreadId
                     }
         , test "globalToAllThread" <|
             \_ ->
-                Expect.equal
-                    { cmds = globalToAllThread.cmds
-                    , newState = globalToAllThread.newState
-                    }
+                Expect.equal (stateOf globalToAllThread)
                     { cmds = []
-                    , newState =
-                        { shared = toParent """original thread
-sampleProcedure3.
-sampleProcedure2.
-"""
-                        , nextThreadId = forkedThreadId4
-                        }
+                    , log =
+                        [ log mainThreadId "original thread received GlobalEvent: global to all."
+                        , log sample3ThreadId1 "sampleProcedure3 received GlobalEvent: global to all."
+                        , log forkInForkThreadId "sampleProcedure2 received InheritedEvent: global to all."
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc forkInForkThreadId
+                    }
+        , test "receiveOnlyInChildThreads" <|
+            \_ ->
+                Expect.equal (stateOf receiveOnlyInChildThreads)
+                    { cmds = []
+                    , log =
+                        [ log sample3ThreadId1 <| evaluateSP3 sample3ThreadId1
+                        , log asyncInForkThreadId "asyncProcedure received InheritedEvent: cleanup."
+                        , log forkInForkThreadId "Evaluate sampleProcedure2."
+                        , log asyncInForkThreadId "asyncProcedure is cancelled."
+                        , log forkInForkThreadId "sampleProcedure2 received ChildEvent2: only in child threads."
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc forkInForkThreadId
                     }
         , test "syncThreads" <|
             \_ ->
-                Expect.equal
-                    { cmds = syncThreads.cmds
-                    , newState = syncThreads.newState
-                    }
+                Expect.equal (stateOf syncThreads)
                     { cmds = []
-                    , newState =
-                        { shared = toParent """Evaluate sampleProcedure3.
-Evaluate sampleProcedure4.
-"""
-                        , nextThreadId = forkedThreadId6
-                        }
+                    , log =
+                        [ log sample3ThreadId2 <| evaluateSP3 sample3ThreadId2
+                        , log sample4ThreadId1 "Evaluate sampleProcedure4."
+                        , log sample5ThreadId1 "Evaluate sampleProcedure5."
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc sample5ThreadId1
                     }
         , test "globalToSyncedThreads" <|
             \_ ->
-                Expect.equal
-                    { cmds = globalToSyncedThreads.cmds
-                    , newState = globalToSyncedThreads.newState
+                Expect.equal (stateOf globalToSyncedThreads)
+                    { cmds = [ ( sample4ThreadId1, Cmd1 ) ]
+                    , log =
+                        [ log sample3ThreadId2 <| evaluateSP3 sample3ThreadId2
+                        , log sample4ThreadId1 "Evaluate sampleProcedure4."
+                        , log sample5ThreadId1 "Evaluate sampleProcedure5."
+                        , log sample3ThreadId2 "sampleProcedure3 received GlobalEvent: globalToSyncedThreads."
+                        , log sample4ThreadId1 "sampleProcedure4 received GlobalEvent: globalToSyncedThreads."
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc sample5ThreadId1
                     }
-                    { cmds = []
-                    , newState =
-                        { shared = toParent """Evaluate sampleProcedure3.
-Evaluate sampleProcedure4.
-sampleProcedure3.
-sampleProcedure4.
-"""
-                        , nextThreadId = forkedThreadId6
-                        }
-                    }
-        , test "globalToLeftThread" <|
+        , test "receiveEvent2InLeftThread" <|
             \_ ->
-                Expect.equal
-                    { cmds = globalToLeftThread.cmds
-                    , newState = globalToLeftThread.newState
+                Expect.equal (stateOf receiveEvent2InLeftThread)
+                    { cmds = [ ( sample4ThreadId1, Cmd2 ), ( mainThreadId, Cmd1 ) ]
+                    , log =
+                        [ log sample3ThreadId2 <| evaluateSP3 sample3ThreadId2
+                        , log sample4ThreadId1 "Evaluate sampleProcedure4."
+                        , log sample5ThreadId1 "Evaluate sampleProcedure5."
+                        , log sample3ThreadId2 "sampleProcedure3 received GlobalEvent: globalToSyncedThreads."
+                        , log sample4ThreadId1 "sampleProcedure4 received GlobalEvent: globalToSyncedThreads."
+                        , log sample4ThreadId1 "sampleProcedure4 received Event2: 3."
+                        , log sample4ThreadId1 "First finalizer for sampleProcedure4."
+                        , log sample4ThreadId1 "Finalizer for sampleProcedure4."
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc sample5ThreadId1
                     }
-                    { cmds = [ ( forkedThreadId5, C Cmd2 ), ( mainThreadId, C Cmd1 ) ]
-                    , newState =
-                        { shared = toParent """Evaluate sampleProcedure3.
-Evaluate sampleProcedure4.
-sampleProcedure3.
-sampleProcedure4.
-sampleProcedure4: left
-"""
-                        , nextThreadId = forkedThreadId6
-                        }
+        , test "forkInSyncAlive" <|
+            \_ ->
+                Expect.equal (stateOf forkInSyncAlive)
+                    { cmds = []
+                    , log =
+                        [ log sample3ThreadId2 <| evaluateSP3 sample3ThreadId2
+                        , log sample4ThreadId1 "Evaluate sampleProcedure4."
+                        , log sample5ThreadId1 "Evaluate sampleProcedure5."
+                        , log sample3ThreadId2 "sampleProcedure3 received GlobalEvent: globalToSyncedThreads."
+                        , log sample4ThreadId1 "sampleProcedure4 received GlobalEvent: globalToSyncedThreads."
+                        , log sample4ThreadId1 "sampleProcedure4 received Event2: 3."
+                        , log sample4ThreadId1 "First finalizer for sampleProcedure4."
+                        , log sample4ThreadId1 "Finalizer for sampleProcedure4."
+                        , log sample5ThreadId1 "sampleProcedure5 received Event1: forkInSyncAlive."
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc sample5ThreadId1
+                    }
+        , test "raceThreads" <|
+            \_ ->
+                Expect.equal (stateOf raceThreads)
+                    { cmds = []
+                    , log =
+                        [ log sample3ThreadId3 <| evaluateSP3 sample3ThreadId3
+                        , log sample4ThreadId2 "Evaluate sampleProcedure4."
+                        , log sample5ThreadId2 "Evaluate sampleProcedure5."
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc sample5ThreadId2
+                    }
+        , test "globalToRacedThreads" <|
+            \_ ->
+                Expect.equal (stateOf globalToRacedThreads)
+                    { cmds = [ ( sample4ThreadId2, Cmd1 ), ( mainThreadId, Cmd1 ) ]
+                    , log =
+                        [ log sample3ThreadId3 <| evaluateSP3 sample3ThreadId3
+                        , log sample4ThreadId2 "Evaluate sampleProcedure4."
+                        , log sample5ThreadId2 "Evaluate sampleProcedure5."
+                        , log sample3ThreadId3 "sampleProcedure3 received GlobalEvent: globalToRacedThreads."
+                        , log sample4ThreadId2 "sampleProcedure4 received GlobalEvent: globalToRacedThreads."
+                        , log sample4ThreadId2 "First finalizer for sampleProcedure4."
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc sample5ThreadId2
+                    }
+        , test "ignoreEvent2InCancelledThread" <|
+            \_ ->
+                Expect.equal (stateOf ignoreEvent2InCancelledThread)
+                    { cmds = []
+                    , log =
+                        [ log sample3ThreadId3 <| evaluateSP3 sample3ThreadId3
+                        , log sample4ThreadId2 "Evaluate sampleProcedure4."
+                        , log sample5ThreadId2 "Evaluate sampleProcedure5."
+                        , log sample3ThreadId3 "sampleProcedure3 received GlobalEvent: globalToRacedThreads."
+                        , log sample4ThreadId2 "sampleProcedure4 received GlobalEvent: globalToRacedThreads."
+                        , log sample4ThreadId2 "First finalizer for sampleProcedure4."
+                        , log sample4ThreadId2 "First finalizer for sampleProcedure4 received Event2."
+                        , log sample4ThreadId2 "Finalizer in finalizer."
+                        , log sample4ThreadId1 "First finalizer for sampleProcedure4 received Event2."
+                        , log sample4ThreadId1 "Finalizer in finalizer."
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc sample5ThreadId2
+                    }
+        , test "forkInRaceAlive" <|
+            \_ ->
+                Expect.equal (stateOf forkInRaceAlive)
+                    { cmds = []
+                    , log =
+                        [ log sample3ThreadId3 <| evaluateSP3 sample3ThreadId3
+                        , log sample4ThreadId2 "Evaluate sampleProcedure4."
+                        , log sample5ThreadId2 "Evaluate sampleProcedure5."
+                        , log sample3ThreadId3 "sampleProcedure3 received GlobalEvent: globalToRacedThreads."
+                        , log sample4ThreadId2 "sampleProcedure4 received GlobalEvent: globalToRacedThreads."
+                        , log sample4ThreadId2 "First finalizer for sampleProcedure4."
+                        , log sample4ThreadId2 "First finalizer for sampleProcedure4 received Event2."
+                        , log sample4ThreadId2 "Finalizer in finalizer."
+                        , log sample4ThreadId1 "First finalizer for sampleProcedure4 received Event2."
+                        , log sample4ThreadId1 "Finalizer in finalizer."
+                        , log sample5ThreadId2 "sampleProcedure5 received Event1: forkInRaceAlive."
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc sample5ThreadId2
                     }
         , test "cleanup2" <|
             \_ ->
-                Expect.equal
-                    { cmds = cleanup2.cmds
-                    , newState = cleanup2.newState
-                    }
+                Expect.equal (stateOf cleanup2)
                     { cmds = []
-                    , newState =
-                        { shared = toParent """modifyAndThen
-"""
-                        , nextThreadId = forkedThreadId7
-                        }
+                    , log =
+                        [ mat mainThreadId
+                        , log sample3ThreadId4 <| evaluateSP3 sample3ThreadId4
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc sample3ThreadId4
                     }
         , test "changeLogAfterModifyAndThen" <|
             \_ ->
-                Expect.equal
-                    { cmds = changeLogAfterModifyAndThen.cmds
-                    , newState = changeLogAfterModifyAndThen.newState
-                    }
+                Expect.equal (stateOf changeLogAfterModifyAndThen)
                     { cmds = []
-                    , newState =
-                        { shared = toParent """modifyAndThen
-sampleProcedure2.
-Evaluate sampleProcedure2.
-"""
-                        , nextThreadId = forkedThreadId7
-                        }
+                    , log =
+                        [ mat mainThreadId
+                        , log sample3ThreadId4 <| evaluateSP3 sample3ThreadId4
+                        , log sample3ThreadId4 <| "sampleProcedure3 received GlobalEvent: changeLog."
+                        , log sample3ThreadId4 <| evaluateSP3 sample3ThreadId4
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc sample3ThreadId4
                     }
         , test "checkPreviousLength" <|
             \_ ->
-                Expect.equal
-                    { cmds = checkPreviousLength.cmds
-                    , newState = checkPreviousLength.newState
-                    }
+                Expect.equal (stateOf checkPreviousLength)
                     { cmds = []
-                    , newState =
-                        let
-                            previousLog : String
-                            previousLog =
-                                "Evaluate sampleProcedure2.\n"
-                        in
-                        { shared = toParent <| """modifyAndThen
-sampleProcedure2.
-Evaluate sampleProcedure2.
-Previous log length: """ ++ String.fromInt (String.length previousLog) ++ """
-"""
-                        , nextThreadId = forkedThreadId7
-                        }
+                    , log =
+                        [ mat mainThreadId
+                        , log sample3ThreadId4 <| evaluateSP3 sample3ThreadId4
+                        , log sample3ThreadId4 "sampleProcedure3 received GlobalEvent: changeLog."
+                        , log sample3ThreadId4 <| evaluateSP3 sample3ThreadId4
+                        , log mainThreadId <| previousLogLength 0
+                        , log mainThreadId <| "Finalize sampleProcedure1."
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc sample3ThreadId4
+                    }
+        , test "forkedThreadAlives" <|
+            \_ ->
+                Expect.equal (stateOf forkedThreadAlives)
+                    { cmds = []
+                    , log =
+                        [ mat mainThreadId
+                        , log sample3ThreadId4 <| evaluateSP3 sample3ThreadId4
+                        , log sample3ThreadId4 "sampleProcedure3 received GlobalEvent: changeLog."
+                        , log sample3ThreadId4 <| evaluateSP3 sample3ThreadId4
+                        , log mainThreadId <| previousLogLength 0
+                        , log mainThreadId <| "Finalize sampleProcedure1."
+                        , log sample3ThreadId4 "sampleProcedure3 received GlobalEvent: alives."
+                        , log sample3ThreadId4 <| evaluateSP3 sample3ThreadId4
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc sample3ThreadId4
                     }
         ]
 
 
 
--- Shared memory
+-- Helper functions
 
 
-type alias Shared =
-    String
-
-
-type alias ParentShared =
-    { child : Shared
-    , other : ()
+stateOf : Internal.Thread cmd Memory event -> { cmds : List ( ThreadId, cmd ), log : List String, childLog : List String, nextThreadId : ThreadId }
+stateOf thread =
+    let
+        memory =
+            Internal.peekMemory thread
+    in
+    { cmds = Internal.threadCmds thread
+    , log = memory.log
+    , childLog = memory.childLog
+    , nextThreadId = Internal.nextThreadId thread
     }
 
 
-toParent : Shared -> ParentShared
-toParent shared =
-    { child = shared
-    , other = ()
+log : ThreadId -> String -> String
+log tid str =
+    "thread " ++ ThreadId.toString tid ++ ": " ++ str
+
+
+startForkedThread : ThreadId -> String
+startForkedThread tid =
+    "Start forked thread " ++ ThreadId.toString tid ++ "."
+
+
+evaluateSP3 : ThreadId -> String
+evaluateSP3 tid =
+    "Evaluate sampleProcedure3 " ++ ThreadId.toString tid ++ "."
+
+
+mat : ThreadId -> String
+mat tid =
+    "modifyAndThen " ++ ThreadId.toString tid
+
+
+logLength : List String -> Int
+logLength strs =
+    List.map String.length strs
+        |> List.sum
+
+
+previousLogLength : Int -> String
+previousLogLength n =
+    "Previous log length: " ++ String.fromInt n
+
+
+
+-- Memory
+
+
+type alias Memory =
+    { log : List String
+    , childLog : List String
     }
 
 
-sharedLifter : Lifter ParentShared Shared
-sharedLifter =
-    { get = .child
-    , set = \child parent -> { parent | child = child }
+type alias ChildMemory =
+    { log : List String
+    , parentLog : List String
+    }
+
+
+memoryLifter : Lifter Memory ChildMemory
+memoryLifter =
+    { get =
+        \parent ->
+            Just
+                { log = parent.childLog
+                , parentLog = parent.log
+                }
+    , set =
+        \child parent ->
+            { parent
+                | childLog = child.log
+                , log = child.parentLog
+            }
     }
 
 
 {-| Append a log message on the shared memory.
 -}
-putLog : String -> Procedure LocalCmd Shared Global Local
+putLog : String -> Procedure Cmd Memory Event
 putLog str =
-    Internal.modify <| \shared -> shared ++ str ++ "\n"
+    Internal.modify <|
+        \tid memory ->
+            { memory
+                | log = memory.log ++ [ log tid str ]
+            }
+
+
+{-| Append a child log message on the shared memory.
+-}
+putChildLog : String -> Procedure cmd ChildMemory event
+putChildLog str =
+    Internal.modify <|
+        \tid memory ->
+            { memory
+                | log = memory.log ++ [ log tid str ]
+            }
+
+
+{-| Append a parent log message on the shared memory.
+-}
+putParentLog : String -> Procedure cmd ChildMemory event
+putParentLog str =
+    Internal.modify <|
+        \tid memory ->
+            { memory
+                | parentLog = memory.parentLog ++ [ log tid str ]
+            }
 
 
 {-| Clear log messages saved on the shared memory.
 -}
-clearLog : Procedure LocalCmd Shared Global Local
+clearLog : Procedure Cmd Memory Event
 clearLog =
-    Internal.modify <| \_ -> ""
+    Internal.modify <|
+        \_ _ ->
+            { log = []
+            , childLog = []
+            }
 
 
 
--- Global events
+-- Events
 
 
-type Global
-    = Global1 String
-    | Global3
+type Event
+    = GlobalEvent String
+    | Event1 String
+    | Event2 Int
+    | Unconcerned
+    | Cleanup
+    | ChildEvent ChildEvent
 
 
-type ParentGlobal
-    = G Global
-    | OtherGlobal
+type ChildEvent
+    = ChildEvent1 Int
+    | ChildEvent2 String
+    | InheritedEvent String
 
 
-mgetGlobal : ParentGlobal -> Maybe Global
-mgetGlobal pg =
-    case pg of
-        G global ->
-            Just global
+mgetChild : Event -> Maybe ChildEvent
+mgetChild event =
+    case event of
+        ChildEvent c ->
+            Just c
 
-        _ ->
-            Nothing
-
-
-
--- Local events
-
-
-type Local
-    = Local1 String
-    | Local2 Int
-
-
-type ParentLocal
-    = L Local
-    | OtherLocal
-
-
-mgetLocal : ParentLocal -> Maybe Local
-mgetLocal pl =
-    case pl of
-        L local ->
-            Just local
+        GlobalEvent str ->
+            Just <| InheritedEvent str
 
         _ ->
             Nothing
 
 
-type LocalCmd
+type Cmd
     = Cmd1
     | Cmd2
-    | Cmd3
+    | ChildCmd ChildCmd
 
 
-type ParentLocalCmd
-    = C LocalCmd
-    | OtherLocalCmd
+type ChildCmd
+    = ChildCmd1
+    | ChildCmd2
 
 
 
 -- Sample procedure
 
 
-sampleProcedure : Procedure LocalCmd Shared Global Local
+sampleProcedure : Procedure Cmd Memory Event
 sampleProcedure =
     Internal.batch
         [ putLog "Start a thread"
-        , Internal.push <| \_ -> [ Cmd1 ]
+        , Internal.push <| \_ _ -> [ Cmd1 ]
         , putLog "Cmd1 has pushed"
-        , Internal.push <| \_ -> [ Cmd2 ]
+        , Internal.push <| \_ _ -> [ Cmd2 ]
+        , Internal.addFinalizer <| \_ -> putLog "Finalize sampleProcedure1."
 
-        -- Awaiting a thread event.
+        -- receiveThreadEvent,
+        -- ignoreUnconcernedThreadEvent,
+        -- ignoreAnotherThreadEvent,
+        -- awaitAgainAfterUnconcernedThreadEvent,
+        -- awaitAgainAfterAnotherThreadEvent,
         , Internal.await <|
-            \local _ ->
-                case local of
-                    Local1 str ->
+            \event _ ->
+                case event of
+                    Event2 n ->
                         Just <|
                             Internal.batch
                                 [ clearLog
-                                , putLog <| "Received Local1 message: " ++ str
+                                , putLog <| "Received Event2 message: " ++ String.fromInt n
                                 ]
 
                     _ ->
                         Nothing
 
-        -- Awaiting a global event.
-        , Internal.awaitGlobal <|
-            \global _ ->
-                case global of
-                    Global1 str ->
-                        Just <|
-                            Internal.batch
-                                [ clearLog
-                                , Internal.push <| \_ -> [ Cmd2 ]
-                                , putLog <| "Received Global1 message: " ++ str
-                                ]
+        -- receiveNextThreadEvent,
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    Event2 _ ->
+                        Just Internal.none
 
-                    Global3 ->
-                        -- Consumes msg, but do nothing
-                        Just <| Internal.none
+                    -- Consumes msg, but do nothing
+                    _ ->
+                        Nothing
         , putLog "This is evaluated immediately after await."
-        , Internal.fork <| \_ -> anotherProcedure
-        , Internal.push <| \_ -> [ Cmd1 ]
-        , Internal.awaitGlobal <|
-            \global _ ->
-                case global of
-                    Global3 ->
+        , Internal.fork <|
+            \tid ->
+                childProcedure tid
+                    |> Internal.liftMemory memoryLifter
+                    |> Internal.liftEvent mgetChild
+                    |> Internal.mapCmd ChildCmd
+        , Internal.push <| \_ _ -> [ Cmd1 ]
+
+        -- cleanup
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    Cleanup ->
                         Just clearLog
 
                     _ ->
                         Nothing
+
+        -- receiveInheritedEvent
         , Internal.await <|
             \local _ ->
                 case local of
-                    Local2 n ->
-                        Just <| putLog <| "Received Local2 in original thread: " ++ String.fromInt n
-
-                    _ ->
-                        Nothing
-        , Internal.awaitGlobal <|
-            \global _ ->
-                case global of
-                    Global1 str ->
-                        Just <| putLog <| "Received Global1 in original thread: " ++ str
+                    GlobalEvent str ->
+                        Just <| putLog <| "Received GlobalEvent in original thread: " ++ str
 
                     _ ->
                         Nothing
 
         -- forkInFork
-        , Internal.awaitGlobal <|
-            \global _ ->
-                case global of
-                    Global3 ->
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    GlobalEvent _ ->
                         Just clearLog
 
                     _ ->
                         Nothing
-        , Internal.push <| \_ -> [ Cmd2 ]
-        , Internal.fork <| \_ -> sampleProcedure3
+        , Internal.push <| \_ _ -> [ Cmd2 ]
+        , Internal.fork <| \tid -> sampleProcedure3 tid
 
         -- globalToAllThread
-        , Internal.awaitGlobal <|
-            \global _ ->
-                case global of
-                    Global3 ->
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    GlobalEvent str ->
                         Just <|
                             Internal.batch
                                 [ clearLog
-                                , putLog <| "original thread"
+                                , putLog <| "original thread received GlobalEvent: " ++ str ++ "."
                                 ]
 
                     _ ->
                         Nothing
 
         -- syncThreads
-        , Internal.awaitGlobal <|
-            \global _ ->
-                case global of
-                    Global3 ->
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    Cleanup ->
                         Just clearLog
 
                     _ ->
                         Nothing
-        , Internal.syncAll
+        , Internal.sync
             [ sampleProcedure3
-            , sampleProcedure4
+            , \_ -> sampleProcedure4
             ]
-        , Internal.push <| \_ -> [ Cmd1 ]
 
-        -- globalToAllThread
-        , Internal.awaitGlobal <|
-            \global _ ->
-                case global of
-                    Global3 ->
+        -- receiveEvent2InLeftThread
+        , Internal.push <| \_ _ -> [ Cmd1 ]
+
+        -- forkInSyncAlive
+        -- raceThreads
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    Cleanup ->
                         Just <| clearLog
 
                     _ ->
                         Nothing
-        , Internal.fork (\_ -> sampleProcedure2Infinite)
+        , Internal.race
+            [ sampleProcedure3
+            , \_ -> sampleProcedure4
+            ]
+        , Internal.push <| \_ _ -> [ Cmd1 ]
+
+        -- ignoreEvent2InCancelledThread
+        -- forkInRaceAlive
+        -- cleanup2
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    Cleanup ->
+                        Just <| clearLog
+
+                    _ ->
+                        Nothing
+        , Internal.fork sampleProcedure3Infinite
         , Internal.modifyAndThen
-            (\shared ->
-                ( "modifyAndThen\n"
-                , String.length shared
+            (\tid memory ->
+                ( { memory
+                    | log = [ mat tid ]
+                  }
+                , logLength memory.log
                 )
             )
-            (\n ->
+            (\_ n ->
+                -- checkPreviousLength
                 Internal.await <|
-                    \local _ ->
-                        case local of
-                            Local1 _ ->
-                                Just <| putLog <| "Previous log length: " ++ String.fromInt n
+                    \event _ ->
+                        case event of
+                            Event2 _ ->
+                                Just <| putLog <| previousLogLength n
 
                             _ ->
                                 Nothing
@@ -746,106 +852,195 @@ sampleProcedure =
         ]
 
 
-anotherProcedure : Procedure LocalCmd Shared Global Local
-anotherProcedure =
+childProcedure : ThreadId -> Procedure ChildCmd ChildMemory ChildEvent
+childProcedure tid =
     Internal.batch
-        [ putLog "Start forked thread."
-        , Internal.push <| \_ -> [ Cmd2 ]
-        , Internal.await <|
-            \local _ ->
-                case local of
-                    Local2 n ->
-                        Just <| putLog <| "Received Local2 in forked thread: " ++ String.fromInt n
+        -- receiveNextThreadEvent - childThreadId
+        [ putParentLog <| startForkedThread tid
+        , putChildLog <| "Child log."
+        , Internal.push <| \_ _ -> [ ChildCmd1 ]
 
-                    _ ->
-                        Nothing
-        , Internal.awaitGlobal <|
-            \global _ ->
-                case global of
-                    Global1 str ->
-                        Just <| putLog <| "Received Global1 in forked thread: " ++ str
+        -- receiveChildEvent,
+        -- receiveInheritedEvent,
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    ChildEvent1 n ->
+                        Just <| putParentLog <| "Received ChildEvent1 in forked thread: " ++ String.fromInt n
+
+                    InheritedEvent str ->
+                        Just <|
+                            Internal.batch
+                                [ putParentLog <| "Received InheritedEvent in forked thread: " ++ str
+                                , Internal.async <| \_ -> asyncProcedure
+                                ]
 
                     _ ->
                         Nothing
 
         -- forkInFork
-        , Internal.awaitGlobal <|
-            \global _ ->
-                case global of
-                    Global3 ->
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    InheritedEvent _ ->
                         Just <| Internal.none
 
                     _ ->
                         Nothing
-        , Internal.push <| \_ -> [ Cmd1 ]
+        , Internal.push <| \_ _ -> [ ChildCmd2 ]
         , Internal.fork <| \_ -> sampleProcedure2
         ]
 
 
-sampleProcedure2 : Procedure LocalCmd Shared Global Local
+sampleProcedure2 : Procedure ChildCmd ChildMemory ChildEvent
 sampleProcedure2 =
     Internal.batch
-        [ putLog "Evaluate sampleProcedure2."
+        -- forkInFork - forkInForkThreadId
+        [ putParentLog "Evaluate sampleProcedure2."
 
         -- globalToAllThread
-        , Internal.awaitGlobal <|
-            \global _ ->
-                case global of
-                    Global3 ->
-                        Just <| putLog <| "sampleProcedure2."
+        -- receiveOnlyInChildThreads
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    InheritedEvent str ->
+                        Just <| putParentLog <| "sampleProcedure2 received InheritedEvent: " ++ str ++ "."
 
-                    _ ->
-                        Nothing
-        ]
-
-
-sampleProcedure3 : Procedure LocalCmd Shared Global Local
-sampleProcedure3 =
-    -- forkInFork
-    Internal.batch
-        [ putLog "Evaluate sampleProcedure3."
-
-        -- globalToAllThread
-        , Internal.awaitGlobal <|
-            \global _ ->
-                case global of
-                    Global3 ->
-                        Just <| putLog <| "sampleProcedure3."
+                    ChildEvent2 str ->
+                        Just <| putParentLog <| "sampleProcedure2 received ChildEvent2: " ++ str ++ "."
 
                     _ ->
                         Nothing
         , Internal.quit
-        , putLog "Unreachable in procedure3"
+        , putChildLog "Unreachable in procedure2"
         ]
 
 
-sampleProcedure4 : Procedure LocalCmd Shared Global Local
+asyncProcedure : Procedure ChildCmd ChildMemory ChildEvent
+asyncProcedure =
+    Internal.batch
+        -- receiveChildEvent, - asyncInForkThreadId
+        -- receiveInheritedEvent, - asyncInForkThreadId
+        [ putParentLog "Evaluate asyncProcedure."
+        , Internal.addFinalizer <| \_ -> putParentLog "asyncProcedure is cancelled."
+
+        -- forkInFork
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    InheritedEvent str ->
+                        Just <| putParentLog <| "asyncProcedure received InheritedEvent: " ++ str ++ "."
+
+                    _ ->
+                        Nothing
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    InheritedEvent str ->
+                        Just <| putParentLog <| "asyncProcedure received InheritedEvent again: " ++ str ++ "."
+
+                    _ ->
+                        Nothing
+        ]
+
+
+sampleProcedure3 : ThreadId -> Procedure Cmd Memory Event
+sampleProcedure3 tid =
+    Internal.batch
+        -- forkInFork - sample3ThreadId1
+        --   syncThreads - sample3ThreadId2
+        --     raceThreads - sample3ThreadId3
+        --       cleanup2 - sample3ThreadId4
+        [ putLog <| evaluateSP3 tid
+
+        -- globalToAllThread
+        --   globalToSyncedThreads
+        --      globalToRacedThreads
+        --        changeLogAfterModifyAndThen
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    GlobalEvent str ->
+                        Just <| putLog <| "sampleProcedure3 received GlobalEvent: " ++ str ++ "."
+
+                    _ ->
+                        Nothing
+        ]
+
+
+sampleProcedure4 : Procedure Cmd Memory Event
 sampleProcedure4 =
     Internal.batch
+        -- syncThreads - sample4ThreadId1
+        --   raceThreads - sample4ThreadId2
         [ putLog "Evaluate sampleProcedure4."
-        , Internal.awaitGlobal <|
-            \global _ ->
-                case global of
-                    Global3 ->
-                        Just <| putLog <| "sampleProcedure4."
+        , Internal.fork sampleProcedure5
+        , Internal.addFinalizer <|
+            \_ ->
+                Internal.batch
+                    [ putLog <| "First finalizer for sampleProcedure4."
+                    , Internal.addFinalizer <| \_ -> putLog "Finalizer in finalizer."
+                    , Internal.await <|
+                        \event _ ->
+                            case event of
+                                Event2 _ ->
+                                    Just <| putLog <| "First finalizer for sampleProcedure4 received Event2."
+
+                                _ ->
+                                    Nothing
+                    ]
+
+        -- globalToSyncedThreads
+        --   globalToRacedThreads
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    GlobalEvent str ->
+                        Just <| putLog <| "sampleProcedure4 received GlobalEvent: " ++ str ++ "."
 
                     _ ->
                         Nothing
-        , Internal.awaitGlobal <|
-            \global _ ->
-                case global of
-                    Global1 str ->
-                        Just <| putLog <| "sampleProcedure4: " ++ str
+        , Internal.push <| \_ _ -> [ Cmd1 ]
+
+        -- receiveEvent2InLeftThread
+        --   ignoreEvent2InCancelledThread
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    Event2 n ->
+                        Just <| putLog <| "sampleProcedure4 received Event2: " ++ String.fromInt n ++ "."
 
                     _ ->
                         Nothing
-        , Internal.push <| \_ -> [ Cmd2 ]
+        , Internal.addFinalizer <| \_ -> putLog "Finalizer for sampleProcedure4."
+        , Internal.push <| \_ _ -> [ Cmd2 ]
         ]
 
 
-sampleProcedure2Infinite : Procedure LocalCmd Shared Global Local
-sampleProcedure2Infinite =
+sampleProcedure5 : ThreadId -> Procedure Cmd Memory Event
+sampleProcedure5 _ =
     Internal.batch
-        [ sampleProcedure2
-        , Internal.lazy (\_ -> sampleProcedure2Infinite)
+        -- syncThreads
+        --   raceThreads
+        [ putLog <| "Evaluate sampleProcedure5."
+
+        -- forkInSyncAlive
+        --   forkInRaceAlive
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    Event1 str ->
+                        Just <| putLog <| "sampleProcedure5 received Event1: " ++ str ++ "."
+
+                    _ ->
+                        Nothing
+        ]
+
+
+sampleProcedure3Infinite : ThreadId -> Procedure Cmd Memory Event
+sampleProcedure3Infinite tid =
+    Internal.batch
+        [ sampleProcedure3 tid
+        , Internal.addFinalizer <| \_ -> putLog "Never called"
+        , Internal.jump (\_ -> sampleProcedure3Infinite tid)
         ]

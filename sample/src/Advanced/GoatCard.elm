@@ -1,19 +1,17 @@
 module Advanced.GoatCard exposing
-    ( Shared
-    , Global
-    , Local
+    ( Memory
+    , Event
     , init
-    , procedure
+    , procedures
     , view
     )
 
 {-| Editable profile card about a goat.
 
-@docs Shared
-@docs Global
-@docs Local
+@docs Memory
+@docs Event
 @docs init
-@docs procedure
+@docs procedures
 @docs view
 
 -}
@@ -22,15 +20,15 @@ import Html exposing (Html)
 import Html.Attributes as Attributes exposing (style)
 import Html.Events as Events
 import Html.Events.Extra exposing (onChange)
-import Thread.Procedure as Procedure exposing (Procedure)
+import Thread.Procedure as Procedure exposing (Block, Procedure)
 
 
 {-| -}
-type Shared
-    = Shared Shared_
+type Memory
+    = Memory Memory_
 
 
-type alias Shared_ =
+type alias Memory_ =
     { form : Form
     , saved : Saved
     , onEditing : Bool
@@ -48,9 +46,9 @@ type alias Saved =
 
 
 {-| -}
-init : Shared
+init : Memory
 init =
-    Shared
+    Memory
         { form =
             { name = ""
             }
@@ -62,7 +60,7 @@ init =
 
 
 {-| -}
-type Global
+type Event
     = ClickEdit
     | ClickRemove
     | ClickSave
@@ -70,125 +68,127 @@ type Global
     | ChangeName String
 
 
-{-| -}
-type alias Local =
-    ()
+
+-- Procedure
 
 
 {-| This procedure is completed only when the remove button clicked.
 -}
-procedure : Procedure Shared Global Local
-procedure =
-    editModeProcedure
+procedures : Block Memory Event
+procedures =
+    editModeProcedures
+        { isInitial = True
+        }
 
 
 {-| Procedure for editing mode.
 -}
-editModeProcedure : Procedure Shared Global Local
-editModeProcedure =
-    Procedure.batch
-        [ Procedure.awaitGlobal <|
-            \global _ ->
-                case global of
-                    ClickSave ->
-                        Just <|
-                            Procedure.batch
-                                [ Procedure.modify <|
-                                    \(Shared shared) ->
-                                        Shared
-                                            { shared
-                                                | form =
-                                                    { name = ""
-                                                    }
-                                                , saved =
-                                                    { name = shared.form.name
-                                                    }
-                                                , onEditing = False
-                                            }
-                                , savedModeProcedure
-                                ]
+editModeProcedures : { isInitial : Bool } -> Block Memory Event
+editModeProcedures opt _ =
+    [ Procedure.await <|
+        \event _ ->
+            case event of
+                ClickSave ->
+                    [ Procedure.modify <|
+                        \(Memory memory) ->
+                            Memory
+                                { memory
+                                    | form =
+                                        { name = ""
+                                        }
+                                    , saved =
+                                        { name = memory.form.name
+                                        }
+                                    , onEditing = False
+                                }
+                    , Procedure.jump savedModeProcedures
+                    ]
 
-                    ClickCancel ->
-                        Just <|
-                            Procedure.batch
-                                [ Procedure.modify <|
-                                    \(Shared shared) ->
-                                        Shared
-                                            { shared
-                                                | form =
-                                                    { name = ""
-                                                    }
-                                                , onEditing = False
-                                            }
-                                , savedModeProcedure
-                                ]
+                ClickCancel ->
+                    [ Procedure.when (\_ -> opt.isInitial)
+                        [ Procedure.quit
+                        ]
+                    , Procedure.modify <|
+                        \(Memory memory) ->
+                            Memory
+                                { memory
+                                    | form =
+                                        { name = ""
+                                        }
+                                    , onEditing = False
+                                }
+                    , Procedure.jump savedModeProcedures
+                    ]
 
-                    ChangeName str ->
-                        Just <|
-                            Procedure.batch
-                                [ Procedure.modify <|
-                                    \(Shared shared) ->
-                                        Shared
-                                            { shared
-                                                | form =
-                                                    shared.form
-                                                        |> (\form ->
-                                                                { form
-                                                                    | name = str
-                                                                }
-                                                           )
-                                            }
-                                , Procedure.lazy (\_ -> editModeProcedure)
-                                ]
+                ChangeName str ->
+                    [ modifyForm <| \form -> { form | name = str }
+                    , Procedure.jump <| editModeProcedures opt
+                    ]
 
-                    _ ->
-                        Nothing
-        ]
+                _ ->
+                    []
+    ]
 
 
 {-| Procedure for view mode.
 -}
-savedModeProcedure : Procedure Shared Global Local
-savedModeProcedure =
-    Procedure.batch
-        [ Procedure.awaitGlobal <|
-            \global _ ->
-                case global of
-                    ClickEdit ->
-                        Just <|
-                            Procedure.batch
-                                [ Procedure.modify <|
-                                    \(Shared shared) ->
-                                        Shared
-                                            { shared
-                                                | onEditing = True
-                                                , form =
-                                                    { name = shared.saved.name
-                                                    }
-                                            }
-                                , editModeProcedure
-                                ]
+savedModeProcedures : Block Memory Event
+savedModeProcedures _ =
+    [ Procedure.await <|
+        \event _ ->
+            case event of
+                ClickEdit ->
+                    [ Procedure.modify <|
+                        \(Memory memory) ->
+                            Memory
+                                { memory
+                                    | onEditing = True
+                                    , form =
+                                        { name = memory.saved.name
+                                        }
+                                }
+                    , Procedure.jump <|
+                        editModeProcedures
+                            { isInitial = False
+                            }
+                    ]
 
-                    ClickRemove ->
-                        Just <| Procedure.quit
+                ClickRemove ->
+                    [ Procedure.quit
+                    ]
 
-                    _ ->
-                        Nothing
-        ]
+                _ ->
+                    []
+    ]
+
+
+
+-- -- Helper procedures
+
+
+modifyForm : (Form -> Form) -> Procedure Memory Event
+modifyForm f =
+    Procedure.modify <|
+        \(Memory memory) ->
+            Memory { memory | form = f memory.form }
+
+
+
+-- View
 
 
 {-| -}
-view : Shared -> Html Global
-view (Shared shared) =
-    if shared.onEditing then
-        editModeView shared.form
+view : Memory -> Html Event
+view (Memory memory) =
+    if memory.onEditing then
+        editModeView memory.form
 
     else
-        savedModeView shared.saved
+        savedModeView memory.saved
 
 
 {-| -}
-editModeView : Form -> Html Global
+editModeView : Form -> Html Event
 editModeView form =
     Html.div
         [ style "border" "solid #333 2px"
@@ -235,7 +235,7 @@ editModeView form =
         ]
 
 
-savedModeView : Saved -> Html Global
+savedModeView : Saved -> Html Event
 savedModeView saved =
     Html.div
         [ style "border" "solid #333 2px"

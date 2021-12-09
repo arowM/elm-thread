@@ -1,31 +1,31 @@
 module Internal exposing
     ( Thread
+    , threadCmds
+    , peekMemory
+    , nextThreadId
     , fromProcedure
-    , cue
-    , runWithMsg
-    , ThreadState
-    , initialState
-    , ThreadResult
+    , run
     , Msg
-    , globalEvent
-    , threadEvent
+    , mapMsg
+    , setTarget
     , Procedure
     , none
     , batch
     , modify
     , push
     , await
-    , awaitGlobal
     , fork
-    , syncAll
+    , async
+    , sync
+    , race
     , quit
     , modifyAndThen
-    , lazy
+    , addFinalizer
+    , jump
     , Lifter
-    , liftShared
-    , liftLocal
-    , liftGlobal
-    , mapLocalCmd
+    , liftMemory
+    , liftEvent
+    , mapCmd
     )
 
 {-|
@@ -34,15 +34,14 @@ module Internal exposing
 # Core
 
 @docs Thread
+@docs threadCmds
+@docs peekMemory
+@docs nextThreadId
 @docs fromProcedure
-@docs cue
-@docs runWithMsg
-@docs ThreadState
-@docs initialState
-@docs ThreadResult
+@docs run
 @docs Msg
-@docs globalEvent
-@docs threadEvent
+@docs mapMsg
+@docs setTarget
 
 
 # Procedure
@@ -53,664 +52,1140 @@ module Internal exposing
 @docs modify
 @docs push
 @docs await
-@docs awaitGlobal
 @docs fork
-@docs syncAll
+@docs async
+@docs sync
+@docs race
 @docs quit
 @docs modifyAndThen
-@docs lazy
+@docs addFinalizer
+@docs jump
 
 
 # Converters
 
 @docs Lifter
-@docs liftShared
-@docs liftLocal
-@docs liftGlobal
-@docs mapLocalCmd
+@docs liftMemory
+@docs liftEvent
+@docs mapCmd
 
 -}
 
 import Internal.ThreadId as ThreadId exposing (ThreadId)
 
 
-{-| Thread processing `Procedure`.
-
-  - localCmd: Side effects on processing the procedure
-      - In a real use case, `Cmd local` is set here, but this module implicitly specify this type argument for testing.
-  - shared: Shared memory
-  - global: Global events
-  - local: Local events that only affect the thread itself
-
--}
-type Thread localCmd shared global local
-    = EndOfThread
-    | WithoutMsg (ThreadState shared -> ThreadResult localCmd shared global local)
-    | WithMsg (Msg global local -> ThreadState shared -> ThreadResult localCmd shared global local)
-    | Async (Thread localCmd shared global local)
-
-
-{-| State to evaluate a thread.
--}
-type alias ThreadState shared =
-    { shared : shared
-    , nextThreadId : ThreadId
-    }
-
-
-{-| -}
-initialState : shared -> ThreadState shared
-initialState shared =
-    { shared = shared
-    , nextThreadId = ThreadId.inc ThreadId.init
-    }
-
-
-{-| Result of thread evaluation.
+{-| Thread representation.
 
   - newState: New thread state after the evaluation.
   - next: New thread to evaluate next time.
   - cmds: Side effects caused by the evaluation.
 
 -}
-type alias ThreadResult localCmd shared global local =
-    { cmds : List ( ThreadId, localCmd )
-    , newState : ThreadState shared
-    , next : Thread localCmd shared global local
+type Thread cmd memory event
+    = Thread
+        { newState : ThreadState memory
+        , next : Msg event -> ThreadState memory -> Thread cmd memory event
+        , cmds : List ( ThreadId, cmd )
+        }
+
+
+pureThread : ThreadState memory -> Thread cmd memory event
+pureThread state =
+    Thread
+        { newState = state
+        , next = \_ -> pureThread
+        , cmds = []
+        }
+
+
+{-| State to evaluate a thread.
+-}
+type alias ThreadState memory =
+    { memory : memory
+    , nextThreadId : ThreadId
     }
 
 
-runInForkedThread : Thread localCmd shared global local -> Thread localCmd shared global local -> Thread localCmd shared global local
-runInForkedThread t1 t2 =
-    case ( t1, t2 ) of
-        ( EndOfThread, _ ) ->
-            t2
-
-        ( _, EndOfThread ) ->
-            t1
-
-        ( Async t1_, _ ) ->
-            Async <| runInForkedThread t1_ t2
-
-        ( _, Async EndOfThread ) ->
-            t1
-
-        ( _, Async (Async t2_) ) ->
-            runInForkedThread t1 (Async t2_)
-
-        ( WithoutMsg f1, _ ) ->
-            WithoutMsg <|
-                \a ->
-                    let
-                        res1 =
-                            f1 a
-                    in
-                    { res1
-                        | next = runInForkedThread res1.next t2
-                    }
-
-        ( _, WithoutMsg f2 ) ->
-            WithoutMsg <|
-                \a ->
-                    let
-                        res2 =
-                            f2 a
-                    in
-                    { res2
-                        | next = runInForkedThread t1 res2.next
-                    }
-
-        ( _, Async (WithoutMsg f2) ) ->
-            WithoutMsg <|
-                \a ->
-                    let
-                        res2 =
-                            f2 a
-                    in
-                    { res2
-                        | next = runInForkedThread t1 (Async res2.next)
-                    }
-
-        ( WithMsg f1, WithMsg f2 ) ->
-            WithMsg <|
-                \msg a ->
-                    let
-                        res1 =
-                            f1 msg a
-
-                        res2 =
-                            f2 msg res1.newState
-                    in
-                    { res2
-                        | cmds = res1.cmds ++ res2.cmds
-                        , next = runInForkedThread res1.next res2.next
-                    }
-
-        ( WithMsg f1, Async (WithMsg f2) ) ->
-            WithMsg <|
-                \msg a ->
-                    let
-                        res1 =
-                            f1 msg a
-
-                        res2 =
-                            f2 msg res1.newState
-                    in
-                    { res2
-                        | cmds = res1.cmds ++ res2.cmds
-                        , next = runInForkedThread res1.next (Async res2.next)
-                    }
-
-
-runInSameThread : Thread localCmd shared global local -> Thread localCmd shared global local -> Thread localCmd shared global local
-runInSameThread t1 t2 =
-    case ( t1, t2 ) of
-        ( EndOfThread, _ ) ->
-            t2
-
-        ( _, EndOfThread ) ->
-            t1
-
-        ( Async _, _ ) ->
-            runInForkedThread t2 t1
-
-        ( _, Async _ ) ->
-            runInForkedThread t1 t2
-
-        ( WithoutMsg f1, _ ) ->
-            WithoutMsg <|
-                \a ->
-                    let
-                        res1 =
-                            f1 a
-                    in
-                    { res1
-                        | next = runInSameThread res1.next t2
-                    }
-
-        ( WithMsg f1, _ ) ->
-            WithMsg <|
-                \msg a ->
-                    let
-                        res1 =
-                            f1 msg a
-                    in
-                    { res1
-                        | next = runInSameThread res1.next t2
-                    }
+initialState : memory -> ThreadState memory
+initialState memory =
+    { memory = memory
+    , nextThreadId = ThreadId.inc ThreadId.init
+    }
 
 
 {-| -}
-fromProcedure : Procedure localCmd shared global local -> Thread localCmd shared global local
-fromProcedure (Procedure ps) =
-    fromProcedure_ ThreadId.init ps
+threadCmds : Thread cmd memory event -> List ( ThreadId, cmd )
+threadCmds (Thread res) =
+    res.cmds
 
 
-fromProcedure_ : ThreadId -> List (Procedure_ localCmd shared global local) -> Thread localCmd shared global local
-fromProcedure_ myThreadId procs =
+{-| -}
+peekMemory : Thread cmd memory event -> memory
+peekMemory (Thread res) =
+    res.newState.memory
+
+
+{-| -}
+nextThreadId : Thread cmd memory event -> ThreadId
+nextThreadId (Thread res) =
+    res.newState.nextThreadId
+
+
+{-| -}
+run : Msg event -> Thread cmd memory event -> Thread cmd memory event
+run msg (Thread t) =
+    t.next msg t.newState
+
+
+{-| -}
+fromProcedure : memory -> Procedure cmd memory event -> Thread cmd memory event
+fromProcedure initialMemory (Procedure ps) =
+    fromProcedure_ ThreadId.init (initialState initialMemory) [] ps
+        |> toThread
+
+
+toThread : FromProcedure cmd memory event -> Thread cmd memory event
+toThread fp =
+    case fp of
+        Running o ->
+            Thread
+                { newState = o.newState
+                , cmds = o.cmds
+                , next =
+                    \msg s ->
+                        o.next msg s
+                            |> toThread
+                }
+                |> digForks o.forks
+
+        Finalizing o ->
+            Thread
+                { newState = o.newState
+                , cmds = o.cmds
+                , next = \_ -> pureThread
+                }
+                |> digForks o.forks
+
+        Completed o ->
+            Thread
+                { newState = o.newState
+                , cmds = o.cmds
+                , next = \_ -> pureThread
+                }
+
+
+digForks : (ThreadState memory -> FromProcedure cmd memory event) -> Thread cmd memory event -> Thread cmd memory event
+digForks f (Thread t) =
+    case f t.newState of
+        Running o ->
+            digForks o.forks <|
+                Thread
+                    { newState = o.newState
+                    , next =
+                        \msg s ->
+                            t.next msg s
+                                |> mergeIndependently
+                                    (o.next msg >> toThread)
+                    , cmds = t.cmds ++ o.cmds
+                    }
+
+        Finalizing o ->
+            digForks o.forks <|
+                Thread
+                    { newState = o.newState
+                    , next = t.next
+                    , cmds = t.cmds ++ o.cmds
+                    }
+
+        Completed o ->
+            Thread
+                { newState = o.newState
+                , next = t.next
+                , cmds = t.cmds ++ o.cmds
+                }
+
+
+mergeIndependently : (ThreadState memory -> Thread cmd memory event) -> Thread cmd memory event -> Thread cmd memory event
+mergeIndependently f (Thread t) =
+    let
+        (Thread t2) =
+            f t.newState
+    in
+    Thread
+        { newState = t2.newState
+        , next =
+            \msg s ->
+                t.next msg s
+                    |> mergeIndependently (t2.next msg)
+        , cmds = t.cmds ++ t2.cmds
+        }
+
+
+type FromProcedure cmd memory event
+    = Running
+        { newState : ThreadState memory
+        , cmds : List ( ThreadId, cmd )
+        , next : Msg event -> ThreadState memory -> FromProcedure cmd memory event
+
+        -- , finalizing : Msg event -> ThreadState memory -> FromProcedure cmd memory event
+        , forks : ThreadState memory -> FromProcedure cmd memory event
+        , finally : ThreadState memory -> FromProcedure cmd memory event
+        }
+    | Finalizing
+        { newState : ThreadState memory
+        , cmds : List ( ThreadId, cmd )
+
+        -- , finalizing : Msg event -> ThreadState memory -> FromProcedure cmd memory event
+        , forks : ThreadState memory -> FromProcedure cmd memory event
+        }
+    | Completed
+        { newState : ThreadState memory
+        , cmds : List ( ThreadId, cmd )
+        }
+
+
+noProcedure : ThreadState memory -> FromProcedure cmd memory event
+noProcedure s =
+    Completed
+        { newState = s
+        , cmds = []
+        }
+
+
+fromProcedure_ : ThreadId -> ThreadState memory -> List ThreadId -> List (Procedure_ cmd memory event) -> FromProcedure cmd memory event
+fromProcedure_ myThreadId state parents procs =
     case procs of
         [] ->
-            EndOfThread
+            Completed
+                { newState = state
+                , cmds = []
+                }
 
         (DoAndThen f) :: ps2 ->
-            WithoutMsg <|
-                \prevState ->
-                    let
-                        ( shared1, cmds1, ps1 ) =
-                            f () prevState.shared
-                    in
-                    { cmds =
-                        cmds1
-                            |> List.map (\cmd -> ( myThreadId, cmd ))
-                    , newState = { prevState | shared = shared1 }
-                    , next =
-                        runInSameThread
-                            (fromProcedure_ myThreadId ps1)
-                            (fromProcedure_ myThreadId ps2)
+            let
+                ( memory1, cmds1, ps1 ) =
+                    f myThreadId state.memory
+
+                newState =
+                    { state
+                        | memory = memory1
                     }
+            in
+            fromProcedure_ myThreadId newState parents (ps1 ++ ps2)
+                |> prependCmds (List.map (\c -> ( myThreadId, c )) cmds1)
+
+        (Do f) :: ps2 ->
+            let
+                ( memory1, cmds1 ) =
+                    f myThreadId state.memory
+
+                newState =
+                    { state
+                        | memory = memory1
+                    }
+            in
+            fromProcedure_ myThreadId newState parents ps2
+                |> prependCmds (List.map (\c -> ( myThreadId, c )) cmds1)
+
+        (AddFinalizer f) :: ps2 ->
+            let
+                ps1 =
+                    f myThreadId
+            in
+            fromProcedure_ myThreadId state parents ps2
+                |> applyFinally
+                    (\s -> fromProcedure_ myThreadId s parents ps1)
 
         (Await f) :: ps2 ->
-            WithMsg <|
-                \msg prevState ->
-                    case f myThreadId msg prevState.shared of
-                        Nothing ->
-                            { cmds = []
-                            , newState = prevState
-                            , next = fromProcedure_ myThreadId procs
-                            }
+            Running
+                { newState = state
+                , next =
+                    \msg s ->
+                        case f (myThreadId :: parents) msg s.memory of
+                            Just ps1 ->
+                                fromProcedure_ myThreadId s parents (ps1 ++ ps2)
 
-                        Just ps1 ->
-                            { cmds = []
-                            , newState = prevState
-                            , next =
-                                runInSameThread
-                                    (fromProcedure_ myThreadId ps1)
-                                    (fromProcedure_ myThreadId ps2)
-                            }
+                            Nothing ->
+                                fromProcedure_ myThreadId s parents procs
+                , cmds = []
+                , forks = noProcedure
+                , finally = noProcedure
+                }
 
-        (Fork f) :: ps1 ->
-            WithoutMsg <|
-                \prevState ->
-                    let
-                        ps2 =
-                            f ()
+        (Async f) :: ps2 ->
+            let
+                asyncedThreadId =
+                    state.nextThreadId
 
-                        forkedThreadId =
-                            prevState.nextThreadId
+                newState =
+                    { state | nextThreadId = ThreadId.inc state.nextThreadId }
 
-                        forked =
-                            fromProcedure_ forkedThreadId ps2
+                asynced s =
+                    f asyncedThreadId
+                        |> fromProcedure_ asyncedThreadId s (myThreadId :: parents)
+            in
+            fromProcedure_ myThreadId newState parents ps2
+                |> andAsync asynced
 
-                        newState =
-                            { prevState | nextThreadId = ThreadId.inc prevState.nextThreadId }
+        (Fork f) :: ps2 ->
+            let
+                forkedThreadId =
+                    state.nextThreadId
 
-                        res =
-                            cue newState forked
-                    in
-                    { res
-                        | next =
-                            runInForkedThread
-                                (fromProcedure_ myThreadId ps1)
-                                (Async res.next)
-                    }
+                newState =
+                    { state | nextThreadId = ThreadId.inc state.nextThreadId }
 
-        (SyncAll pss) :: ps2 ->
-            WithoutMsg <|
-                \prevState ->
-                    let
-                        forked =
-                            List.foldl
-                                (\ps acc ->
-                                    let
-                                        forkedThreadId =
-                                            acc.nextThreadId
-                                    in
-                                    { nextThreadId = ThreadId.inc acc.nextThreadId
-                                    , next =
-                                        runInForkedThread
-                                            acc.next
-                                            (fromProcedure_ forkedThreadId ps)
-                                    }
-                                )
-                                { nextThreadId = prevState.nextThreadId
-                                , next = EndOfThread
-                                }
-                                pss
-                    in
-                    { cmds = []
-                    , newState = { prevState | nextThreadId = forked.nextThreadId }
-                    , next =
-                        runInSameThread
-                            forked.next
-                            (fromProcedure_ myThreadId ps2)
-                    }
+                forked s =
+                    f forkedThreadId
+                        |> fromProcedure_ forkedThreadId s (myThreadId :: parents)
+            in
+            fromProcedure_ myThreadId newState parents ps2
+                |> andForks forked
+
+        (Sync fs) :: ps2 ->
+            fromProcDeps state (myThreadId :: parents) fs
+                |> andThen (\s -> fromProcedure_ myThreadId s parents ps2)
+
+        (Race fs) :: ps2 ->
+            fromProcRaceDeps state (myThreadId :: parents) fs
+                |> andThen (\s -> fromProcedure_ myThreadId s parents ps2)
+
+        (Turn f) :: ps2 ->
+            let
+                ps1 =
+                    f myThreadId
+            in
+            -- fromProcedure_ myThreadId state parents (ps1 ++ ps2)
+            fromProcedure_ myThreadId state parents ps1
 
         Quit :: _ ->
-            EndOfThread
+            noProcedure state
+
+
+prependCmds : List ( ThreadId, cmd ) -> FromProcedure cmd memory event -> FromProcedure cmd memory event
+prependCmds cmds fp =
+    case fp of
+        Running o ->
+            Running { o | cmds = cmds ++ o.cmds }
+
+        Finalizing o ->
+            Finalizing { o | cmds = cmds ++ o.cmds }
+
+        Completed o ->
+            Completed { o | cmds = cmds ++ o.cmds }
+
+
+applyFinally : (ThreadState memory -> FromProcedure cmd memory event) -> FromProcedure cmd memory event -> FromProcedure cmd memory event
+applyFinally f fp =
+    case fp of
+        Running o ->
+            Running
+                { o
+                    | finally =
+                        \s ->
+                            f s |> andIndependently o.finally
+                    , next =
+                        \msg s ->
+                            o.next msg s
+                                |> applyFinally f
+                }
+
+        Finalizing o ->
+            Finalizing
+                { o
+                    | forks =
+                        \s ->
+                            f s |> andIndependently o.forks
+                }
+
+        Completed o ->
+            Finalizing
+                { newState = o.newState
+                , cmds = o.cmds
+                , forks = f
+                }
+
+
+andThen : (ThreadState memory -> FromProcedure cmd memory event) -> FromProcedure cmd memory event -> FromProcedure cmd memory event
+andThen f fp =
+    case fp of
+        Running o ->
+            Running
+                { o
+                    | next =
+                        \msg s ->
+                            o.next msg s
+                                |> andThen f
+                }
+
+        Finalizing o ->
+            case f o.newState of
+                Running o2 ->
+                    Running
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , next = o2.next
+                        , forks =
+                            \s ->
+                                o.forks s
+                                    |> andIndependently o2.forks
+                        , finally = o2.finally
+                        }
+
+                Finalizing o2 ->
+                    Finalizing
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , forks =
+                            \s ->
+                                o.forks s
+                                    |> andIndependently o2.forks
+                        }
+
+                Completed o2 ->
+                    Finalizing
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , forks = o.forks
+                        }
+
+        Completed o ->
+            case f o.newState of
+                Running o2 ->
+                    Running
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , next = o2.next
+                        , forks = o2.forks
+                        , finally = o2.finally
+                        }
+
+                Finalizing o2 ->
+                    Finalizing
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , forks = o2.forks
+                        }
+
+                Completed o2 ->
+                    Completed
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        }
+
+
+andForks : (ThreadState memory -> FromProcedure cmd memory event) -> FromProcedure cmd memory event -> FromProcedure cmd memory event
+andForks forked fp =
+    case fp of
+        Running to ->
+            Running
+                { to
+                    | forks =
+                        \s ->
+                            to.forks s
+                                |> andIndependently forked
+                }
+
+        Finalizing to ->
+            Finalizing
+                { to
+                    | forks =
+                        \s ->
+                            to.forks s
+                                |> andIndependently forked
+                }
+
+        Completed to ->
+            Finalizing
+                { newState = to.newState
+                , cmds = to.cmds
+                , forks = forked
+                }
+
+
+andAsync : (ThreadState memory -> FromProcedure cmd memory event) -> FromProcedure cmd memory event -> FromProcedure cmd memory event
+andAsync f fp =
+    case fp of
+        Running o ->
+            case f o.newState of
+                Running oasync ->
+                    Running
+                        { newState = oasync.newState
+                        , cmds = o.cmds ++ oasync.cmds
+                        , next =
+                            \msg s ->
+                                o.next msg s
+                                    |> andAsync (oasync.next msg)
+                        , forks =
+                            \s ->
+                                o.forks s
+                                    |> andIndependently oasync.forks
+                        , finally =
+                            \s ->
+                                o.finally s
+                                    |> andIndependently oasync.finally
+                        }
+
+                Finalizing oasync ->
+                    Running
+                        { newState = oasync.newState
+                        , cmds = o.cmds ++ oasync.cmds
+                        , next = o.next
+                        , forks =
+                            \s ->
+                                o.forks s
+                                    |> andIndependently oasync.forks
+                        , finally = o.finally
+                        }
+
+                Completed oasync ->
+                    Running
+                        { newState = oasync.newState
+                        , cmds = o.cmds ++ oasync.cmds
+                        , next = o.next
+                        , forks = o.forks
+                        , finally = o.finally
+                        }
+
+        Finalizing o ->
+            case f o.newState of
+                Running oasync ->
+                    Finalizing
+                        { newState = oasync.newState
+                        , cmds = o.cmds ++ oasync.cmds
+                        , forks =
+                            \s ->
+                                o.forks s
+                                    |> andIndependently oasync.forks
+                                    |> andIndependently oasync.finally
+                        }
+
+                Finalizing oasync ->
+                    Finalizing
+                        { newState = oasync.newState
+                        , cmds = o.cmds ++ oasync.cmds
+                        , forks =
+                            \s ->
+                                o.forks s
+                                    |> andIndependently oasync.forks
+                        }
+
+                Completed oasync ->
+                    Finalizing
+                        { newState = oasync.newState
+                        , cmds = o.cmds ++ oasync.cmds
+                        , forks = o.forks
+                        }
+
+        Completed o ->
+            case f o.newState of
+                Running oasync ->
+                    Finalizing
+                        { newState = oasync.newState
+                        , cmds = o.cmds ++ oasync.cmds
+                        , forks =
+                            \s ->
+                                oasync.forks s
+                                    |> andIndependently oasync.finally
+                        }
+
+                Finalizing oasync ->
+                    Finalizing
+                        { newState = oasync.newState
+                        , cmds = o.cmds ++ oasync.cmds
+                        , forks = oasync.forks
+                        }
+
+                Completed oasync ->
+                    Completed
+                        { newState = oasync.newState
+                        , cmds = o.cmds ++ oasync.cmds
+                        }
+
+
+andIndependently : (ThreadState memory -> FromProcedure cmd memory event) -> FromProcedure cmd memory event -> FromProcedure cmd memory event
+andIndependently =
+    andForks
+
+
+fromProcDeps : ThreadState memory -> List ThreadId -> List (ThreadId -> List (Procedure_ cmd memory event)) -> FromProcedure cmd memory event
+fromProcDeps state parents fs =
+    List.foldl
+        (\f acc ->
+            acc
+                |> andNextDep
+                    (\s ->
+                        f s.nextThreadId
+                            |> fromProcedure_
+                                s.nextThreadId
+                                { s | nextThreadId = ThreadId.inc s.nextThreadId }
+                                parents
+                    )
+        )
+        (noProcedure state)
+        fs
+
+
+andNextDep : (ThreadState memory -> FromProcedure cmd memory event) -> FromProcedure cmd memory event -> FromProcedure cmd memory event
+andNextDep f fp =
+    case fp of
+        Running o ->
+            case f o.newState of
+                Running o2 ->
+                    Running
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , next =
+                            \msg s ->
+                                o.next msg s
+                                    |> andNextDep (o2.next msg)
+                        , forks =
+                            \s ->
+                                o.forks s
+                                    |> andIndependently o2.forks
+                        , finally =
+                            \s ->
+                                o.finally s
+                                    |> andIndependently o2.finally
+                        }
+
+                Finalizing o2 ->
+                    Running
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , next = o.next
+                        , forks =
+                            \s ->
+                                o.forks s
+                                    |> andIndependently o2.forks
+                        , finally = o.finally
+                        }
+
+                Completed o2 ->
+                    Running
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , next = o.next
+                        , forks = o.forks
+                        , finally = o.finally
+                        }
+
+        Finalizing o ->
+            case f o.newState of
+                Running o2 ->
+                    Running
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , next = o2.next
+                        , forks =
+                            \s ->
+                                o.forks s
+                                    |> andIndependently o2.forks
+                        , finally = o2.finally
+                        }
+
+                Finalizing o2 ->
+                    Finalizing
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , forks =
+                            \s ->
+                                o.forks s
+                                    |> andIndependently o2.forks
+                        }
+
+                Completed o2 ->
+                    Finalizing
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , forks = o.forks
+                        }
+
+        Completed o ->
+            case f o.newState of
+                Running o2 ->
+                    Running
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , next = o2.next
+                        , forks = o2.forks
+                        , finally = o2.finally
+                        }
+
+                Finalizing o2 ->
+                    Finalizing
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , forks = o2.forks
+                        }
+
+                Completed o2 ->
+                    Completed
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        }
+
+
+fromProcRaceDeps : ThreadState memory -> List ThreadId -> List (ThreadId -> List (Procedure_ cmd memory event)) -> FromProcedure cmd memory event
+fromProcRaceDeps state parents fs =
+    case fs of
+        [] ->
+            noProcedure state
+
+        g :: gs ->
+            List.foldl
+                (\f acc ->
+                    acc
+                        |> andNextRaceDep
+                            (\s ->
+                                f s.nextThreadId
+                                    |> fromProcedure_
+                                        s.nextThreadId
+                                        { s | nextThreadId = ThreadId.inc s.nextThreadId }
+                                        parents
+                            )
+                )
+                (g state.nextThreadId
+                    |> fromProcedure_
+                        state.nextThreadId
+                        { state | nextThreadId = ThreadId.inc state.nextThreadId }
+                        parents
+                )
+                gs
+
+
+andNextRaceDep : (ThreadState memory -> FromProcedure cmd memory event) -> FromProcedure cmd memory event -> FromProcedure cmd memory event
+andNextRaceDep f acc =
+    case acc of
+        Running o ->
+            case f o.newState of
+                Running o2 ->
+                    Running
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , next =
+                            \msg s ->
+                                o.next msg s
+                                    |> andNextRaceDep (o2.next msg)
+                        , forks =
+                            \s ->
+                                o.forks s
+                                    |> andIndependently o2.forks
+                        , finally =
+                            \s ->
+                                o.finally s
+                                    |> andIndependently o2.finally
+                        }
+
+                Finalizing o2 ->
+                    Finalizing
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , forks =
+                            \s ->
+                                o.forks s
+                                    |> andIndependently o2.forks
+                                    |> andIndependently o.finally
+                        }
+
+                Completed o2 ->
+                    Finalizing
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , forks =
+                            \s ->
+                                o.forks s
+                                    |> andIndependently o.finally
+                        }
+
+        Finalizing o ->
+            case f o.newState of
+                Running o2 ->
+                    Finalizing
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , forks =
+                            \s ->
+                                o.forks s
+                                    |> andIndependently o2.forks
+                                    |> andIndependently o2.finally
+                        }
+
+                Finalizing o2 ->
+                    Finalizing
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , forks =
+                            \s ->
+                                o.forks s
+                                    |> andIndependently o2.forks
+                        }
+
+                Completed o2 ->
+                    Finalizing
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , forks = o.forks
+                        }
+
+        Completed o ->
+            case f o.newState of
+                Running o2 ->
+                    Finalizing
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , forks =
+                            \s ->
+                                o2.forks s
+                                    |> andIndependently o2.finally
+                        }
+
+                Finalizing o2 ->
+                    Finalizing
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        , forks = o2.forks
+                        }
+
+                Completed o2 ->
+                    Completed
+                        { newState = o2.newState
+                        , cmds = o.cmds ++ o2.cmds
+                        }
 
 
 {-| -}
-cue : ThreadState shared -> Thread localCmd shared global local -> ThreadResult localCmd shared global local
-cue state thread =
-    case thread of
-        EndOfThread ->
-            { cmds = []
-            , newState = state
-            , next = EndOfThread
-            }
-
-        Async t ->
-            let
-                res =
-                    cue state t
-            in
-            { res
-                | next = Async res.next
-            }
-
-        WithoutMsg f ->
-            let
-                res1 =
-                    f state
-
-                res2 =
-                    cue res1.newState res1.next
-            in
-            { res2
-                | cmds = res1.cmds ++ res2.cmds
-            }
-
-        WithMsg _ ->
-            { cmds = []
-            , newState = state
-            , next = thread
-            }
+type Msg event
+    = ThreadEvent ThreadId event
 
 
 {-| -}
-runWithMsg : Msg global local -> ThreadState shared -> Thread localCmd shared global local -> ThreadResult localCmd shared global local
-runWithMsg msg state thread =
-    let
-        res =
-            cue state thread
-    in
-    case res.next of
-        EndOfThread ->
-            res
-
-        Async _ ->
-            res
-
-        WithoutMsg _ ->
-            -- Unreachable branch
-            let
-                res2 =
-                    cue res.newState res.next
-            in
-            { res2
-                | cmds = res.cmds ++ res2.cmds
-            }
-
-        WithMsg f ->
-            let
-                res2 =
-                    f msg res.newState
-
-                res3 =
-                    cue res2.newState res2.next
-            in
-            { res3
-                | cmds = res.cmds ++ res2.cmds ++ res3.cmds
-            }
+mapMsg : (a -> b) -> Msg a -> Msg b
+mapMsg f (ThreadEvent tid a) =
+    ThreadEvent tid (f a)
 
 
 {-| -}
-type Msg global local
-    = GlobalEvent global
-    | ThreadEvent ThreadId local
-
-
-{-| -}
-globalEvent : global -> Msg global local
-globalEvent =
-    GlobalEvent
-
-
-{-| -}
-threadEvent : ThreadId -> local -> Msg global local
-threadEvent =
+setTarget : ThreadId -> event -> Msg event
+setTarget =
     ThreadEvent
 
 
 {-| Procedures to be processed in a thread.
 
-  - localCmd: Side effects on processing the procedure
-      - In a real use case, `Cmd local` is set here, but this module implicitly specify this type argument for testing.
-  - shared: Shared memory
-  - global: Global events
-  - local: Local events that only affect the thread itself
+  - cmd: Side effects on processing the procedure
+      - In a real use case, `Cmd (Msg event)` is set here, but this module implicitly specify this type argument for testing.
+  - memory: Shared memory
+  - event: Message that only affect the certain threads
 
 -}
-type Procedure localCmd shared global local
-    = Procedure (List (Procedure_ localCmd shared global local))
+type Procedure cmd memory event
+    = Procedure (List (Procedure_ cmd memory event))
 
 
 {-| -}
-none : Procedure localCmd shared global local
+none : Procedure cmd memory event
 none =
     Procedure []
 
 
 {-| -}
-batch : List (Procedure localCmd shared global local) -> Procedure localCmd shared global local
+batch : List (Procedure cmd memory event) -> Procedure cmd memory event
 batch procs =
     List.concatMap (\(Procedure ps) -> ps) procs
         |> Procedure
 
 
-type Procedure_ localCmd shared global local
-    = DoAndThen (() -> shared -> ( shared, List localCmd, List (Procedure_ localCmd shared global local) ))
-    | Await (ThreadId -> Msg global local -> shared -> Maybe (List (Procedure_ localCmd shared global local)))
-    | Fork (() -> List (Procedure_ localCmd shared global local))
-    | SyncAll (List (List (Procedure_ localCmd shared global local)))
+type Procedure_ cmd memory event
+    = DoAndThen (ThreadId -> memory -> ( memory, List cmd, List (Procedure_ cmd memory event) ))
+    | Do (ThreadId -> memory -> ( memory, List cmd ))
+    | AddFinalizer (ThreadId -> List (Procedure_ cmd memory event))
+    | Await (List ThreadId -> Msg event -> memory -> Maybe (List (Procedure_ cmd memory event)))
+    | Fork (ThreadId -> List (Procedure_ cmd memory event))
+    | Async (ThreadId -> List (Procedure_ cmd memory event))
+    | Sync (List (ThreadId -> List (Procedure_ cmd memory event)))
+    | Race (List (ThreadId -> List (Procedure_ cmd memory event)))
+    | Turn (ThreadId -> List (Procedure_ cmd memory event))
     | Quit
 
 
-{-| Use to lift shared type.
+{-| Use to lift memory type.
 -}
 type alias Lifter a b =
-    { get : a -> b
+    { get : a -> Maybe b
     , set : b -> a -> a
     }
 
 
 {-| -}
-liftShared : Lifter a b -> Procedure localCmd b global local -> Procedure localCmd a global local
-liftShared lifter (Procedure ps) =
-    Procedure <| List.map (liftShared_ lifter) ps
+liftMemory : Lifter a b -> Procedure cmd b event -> Procedure cmd a event
+liftMemory lifter (Procedure ps) =
+    Procedure <| List.map (liftMemory_ lifter) ps
 
 
-liftShared_ : Lifter a b -> Procedure_ localCmd b global local -> Procedure_ localCmd a global local
-liftShared_ lifter pb =
+liftMemory_ : Lifter a b -> Procedure_ cmd b event -> Procedure_ cmd a event
+liftMemory_ lifter pb =
     case pb of
         DoAndThen f ->
             DoAndThen <|
-                \_ a ->
-                    let
-                        ( b, cmds, ps ) =
-                            f () (lifter.get a)
-                    in
-                    ( lifter.set b a
-                    , cmds
-                    , List.map (liftShared_ lifter) ps
-                    )
+                \tid a ->
+                    case lifter.get a of
+                        Nothing ->
+                            ( a, [], [] )
+
+                        Just old ->
+                            let
+                                ( b, cmds, ps ) =
+                                    f tid old
+                            in
+                            ( lifter.set b a
+                            , cmds
+                            , List.map (liftMemory_ lifter) ps
+                            )
+
+        Do f ->
+            Do <|
+                \tid a ->
+                    case lifter.get a of
+                        Nothing ->
+                            ( a, [] )
+
+                        Just old ->
+                            let
+                                ( b, cmds ) =
+                                    f tid old
+                            in
+                            ( lifter.set b a
+                            , cmds
+                            )
+
+        AddFinalizer f ->
+            AddFinalizer <|
+                \tid ->
+                    List.map (liftMemory_ lifter) (f tid)
 
         Await f ->
             Await <|
-                \tid msg a ->
-                    f tid msg (lifter.get a)
-                        |> Maybe.map (List.map (liftShared_ lifter))
+                \tids msg a ->
+                    case lifter.get a of
+                        Nothing ->
+                            Nothing
+
+                        Just old ->
+                            f tids msg old
+                                |> Maybe.map (List.map (liftMemory_ lifter))
 
         Fork f ->
             Fork <|
-                \_ ->
-                    f ()
-                        |> List.map (liftShared_ lifter)
+                \tid ->
+                    f tid
+                        |> List.map (liftMemory_ lifter)
 
-        SyncAll pss ->
-            SyncAll <|
-                List.map (List.map (liftShared_ lifter)) pss
+        Async f ->
+            Async <|
+                \tid ->
+                    f tid
+                        |> List.map (liftMemory_ lifter)
+
+        Sync fs ->
+            Sync <|
+                List.map (\f tid -> List.map (liftMemory_ lifter) (f tid)) fs
+
+        Race fs ->
+            Race <|
+                List.map (\f tid -> List.map (liftMemory_ lifter) (f tid)) fs
+
+        Turn f ->
+            Turn <|
+                \x ->
+                    f x
+                        |> List.map (liftMemory_ lifter)
 
         Quit ->
             Quit
 
 
 {-| -}
-liftLocal : (a -> Maybe b) -> Procedure localCmd shared global b -> Procedure localCmd shared global a
-liftLocal mget (Procedure ps) =
-    List.map (liftLocal_ mget) ps
+liftEvent : (a -> Maybe b) -> Procedure cmd memory b -> Procedure cmd memory a
+liftEvent mget (Procedure ps) =
+    List.map (liftEvent_ mget) ps
         |> Procedure
 
 
 {-| -}
-liftLocal_ : (a -> Maybe b) -> Procedure_ localCmd shared global b -> Procedure_ localCmd shared global a
-liftLocal_ mget pb =
+liftEvent_ : (a -> Maybe b) -> Procedure_ cmd memory b -> Procedure_ cmd memory a
+liftEvent_ mget pb =
     case pb of
         DoAndThen f ->
             DoAndThen <|
-                \_ shared ->
+                \tid memory ->
                     let
-                        ( shared2, cmds, ps ) =
-                            f () shared
+                        ( memory2, cmds, ps ) =
+                            f tid memory
                     in
-                    ( shared2
+                    ( memory2
                     , cmds
-                    , List.map (liftLocal_ mget) ps
+                    , List.map (liftEvent_ mget) ps
                     )
+
+        Do f ->
+            Do f
+
+        AddFinalizer f ->
+            AddFinalizer <|
+                \tid ->
+                    List.map (liftEvent_ mget) (f tid)
 
         Await f ->
             Await <|
-                \tid msg shared ->
-                    mapMaybeLocal mget msg
+                \tids msg memory ->
+                    mapMaybeEvent mget msg
                         |> Maybe.andThen
                             (\b ->
-                                f tid b shared
-                                    |> Maybe.map (List.map (liftLocal_ mget))
+                                f tids b memory
+                                    |> Maybe.map (List.map (liftEvent_ mget))
                             )
 
         Fork f ->
             Fork <|
-                \_ ->
-                    f ()
-                        |> List.map (liftLocal_ mget)
+                \tid ->
+                    f tid
+                        |> List.map (liftEvent_ mget)
 
-        SyncAll pss ->
-            SyncAll <|
-                List.map (List.map (liftLocal_ mget)) pss
+        Async f ->
+            Async <|
+                \tid ->
+                    f tid
+                        |> List.map (liftEvent_ mget)
+
+        Sync fs ->
+            Sync <|
+                List.map (\f tid -> List.map (liftEvent_ mget) (f tid)) fs
+
+        Race fs ->
+            Race <|
+                List.map (\f tid -> List.map (liftEvent_ mget) (f tid)) fs
+
+        Turn f ->
+            Turn <|
+                \x ->
+                    f x |> List.map (liftEvent_ mget)
 
         Quit ->
             Quit
 
 
-mapMaybeLocal : (a -> Maybe b) -> Msg global a -> Maybe (Msg global b)
-mapMaybeLocal f msg =
+mapMaybeEvent : (a -> Maybe b) -> Msg a -> Maybe (Msg b)
+mapMaybeEvent f msg =
     case msg of
-        GlobalEvent global ->
-            Just <| GlobalEvent global
-
         ThreadEvent tid a ->
             Maybe.map (ThreadEvent tid) (f a)
 
 
 {-| -}
-liftGlobal : (a -> Maybe b) -> Procedure localCmd shared b local -> Procedure localCmd shared a local
-liftGlobal mget (Procedure ps) =
-    List.map (liftGlobal_ mget) ps
+mapCmd : (a -> b) -> Procedure a memory event -> Procedure b memory event
+mapCmd set (Procedure ps) =
+    List.map (mapCmd_ set) ps
         |> Procedure
 
 
 {-| -}
-liftGlobal_ : (a -> Maybe b) -> Procedure_ localCmd shared b local -> Procedure_ localCmd shared a local
-liftGlobal_ mget pb =
+mapCmd_ : (a -> b) -> Procedure_ a memory event -> Procedure_ b memory event
+mapCmd_ set pb =
     case pb of
         DoAndThen f ->
             DoAndThen <|
-                \_ shared ->
+                \tid memory ->
                     let
-                        ( shared2, cmds, ps ) =
-                            f () shared
+                        ( memory2, cmds, ps ) =
+                            f tid memory
                     in
-                    ( shared2
-                    , cmds
-                    , List.map (liftGlobal_ mget) ps
-                    )
-
-        Await f ->
-            Await <|
-                \tid msg shared ->
-                    mapMaybeGlobal mget msg
-                        |> Maybe.andThen
-                            (\b ->
-                                f tid b shared
-                                    |> Maybe.map (List.map (liftGlobal_ mget))
-                            )
-
-        Fork f ->
-            Fork <|
-                \_ ->
-                    f ()
-                        |> List.map (liftGlobal_ mget)
-
-        SyncAll pss ->
-            SyncAll <|
-                List.map (List.map (liftGlobal_ mget)) pss
-
-        Quit ->
-            Quit
-
-
-mapMaybeGlobal : (a -> Maybe b) -> Msg a local -> Maybe (Msg b local)
-mapMaybeGlobal f msg =
-    case msg of
-        GlobalEvent a ->
-            Maybe.map GlobalEvent (f a)
-
-        ThreadEvent tid local ->
-            Just <| ThreadEvent tid local
-
-
-{-| -}
-mapLocalCmd : (a -> b) -> Procedure a shared global local -> Procedure b shared global local
-mapLocalCmd set (Procedure ps) =
-    List.map (mapLocalCmd_ set) ps
-        |> Procedure
-
-
-{-| -}
-mapLocalCmd_ : (a -> b) -> Procedure_ a shared global local -> Procedure_ b shared global local
-mapLocalCmd_ set pb =
-    case pb of
-        DoAndThen f ->
-            DoAndThen <|
-                \_ shared ->
-                    let
-                        ( shared2, cmds, ps ) =
-                            f () shared
-                    in
-                    ( shared2
+                    ( memory2
                     , List.map set cmds
-                    , List.map (mapLocalCmd_ set) ps
+                    , List.map (mapCmd_ set) ps
                     )
+
+        Do f ->
+            Do <|
+                \tid memory ->
+                    let
+                        ( memory2, cmds ) =
+                            f tid memory
+                    in
+                    ( memory2
+                    , List.map set cmds
+                    )
+
+        AddFinalizer f ->
+            AddFinalizer <|
+                \tid ->
+                    List.map (mapCmd_ set) (f tid)
 
         Await f ->
             Await <|
-                \tid msg shared ->
-                    f tid msg shared
-                        |> Maybe.map (List.map (mapLocalCmd_ set))
+                \tids msg memory ->
+                    f tids msg memory
+                        |> Maybe.map (List.map (mapCmd_ set))
 
         Fork f ->
             Fork <|
-                \_ ->
-                    f ()
-                        |> List.map (mapLocalCmd_ set)
+                \tid ->
+                    f tid
+                        |> List.map (mapCmd_ set)
 
-        SyncAll pss ->
-            SyncAll <|
-                List.map (List.map (mapLocalCmd_ set)) pss
+        Async f ->
+            Async <|
+                \tid ->
+                    f tid
+                        |> List.map (mapCmd_ set)
+
+        Sync fs ->
+            Sync <|
+                List.map (\f tid -> List.map (mapCmd_ set) (f tid)) fs
+
+        Race fs ->
+            Race <|
+                List.map (\f tid -> List.map (mapCmd_ set) (f tid)) fs
+
+        Turn f ->
+            Turn <|
+                \x ->
+                    f x |> List.map (mapCmd_ set)
 
         Quit ->
             Quit
 
 
-{-| -}
-modify : (shared -> shared) -> Procedure localCmd shared global local
+{-| Modifies the shared memory state.
+The first argument takes current `ThreadId` and returns a modify function.
+-}
+modify : (ThreadId -> memory -> memory) -> Procedure cmd memory event
 modify f =
     Procedure
-        [ DoAndThen <| \_ shared -> ( f shared, [], [] )
+        [ Do <| \tid memory -> ( f tid memory, [] )
         ]
 
 
-{-| -}
-push : (shared -> List localCmd) -> Procedure localCmd shared global local
+{-| Push new `Cmd`.
+The first argument takes current `ThreadId` and the shared memory state.
+-}
+push : (ThreadId -> memory -> List cmd) -> Procedure cmd memory event
 push f =
     Procedure
-        [ DoAndThen <| \_ shared -> ( shared, f shared, [] )
+        [ Do <| \tid memory -> ( memory, f tid memory )
         ]
 
 
 {-| -}
-await : (local -> shared -> Maybe (Procedure localCmd shared global local)) -> Procedure localCmd shared global local
+await : (event -> memory -> Maybe (Procedure cmd memory event)) -> Procedure cmd memory event
 await f =
     Procedure
         [ Await <|
-            \tid msg shared ->
+            \tids msg memory ->
                 case msg of
-                    GlobalEvent _ ->
-                        Nothing
-
-                    ThreadEvent tid_ local ->
-                        if tid == tid_ then
-                            f local shared
+                    ThreadEvent tid event ->
+                        if List.member tid tids then
+                            f event memory
                                 |> Maybe.map
                                     (\(Procedure ps) -> ps)
 
@@ -719,25 +1194,10 @@ await f =
         ]
 
 
-{-| -}
-awaitGlobal : (global -> shared -> Maybe (Procedure localCmd shared global local)) -> Procedure localCmd shared global local
-awaitGlobal f =
-    Procedure
-        [ Await <|
-            \_ msg shared ->
-                case msg of
-                    GlobalEvent global ->
-                        f global shared
-                            |> Maybe.map
-                                (\(Procedure ps) -> ps)
-
-                    ThreadEvent _ _ ->
-                        Nothing
-        ]
-
-
-{-| -}
-fork : (() -> Procedure localCmd shared global local) -> Procedure localCmd shared global local
+{-| Run in independent thread, which alives even when the original thread ends.
+The first argument takes current `ThreadId`.
+-}
+fork : (ThreadId -> Procedure cmd memory event) -> Procedure cmd memory event
 fork f =
     Procedure
         [ Fork <|
@@ -747,42 +1207,102 @@ fork f =
         ]
 
 
-{-| -}
-syncAll : List (Procedure localCmd shared global local) -> Procedure localCmd shared global local
-syncAll procs =
+{-| Run in asynchronous thread, which ends when the original thread ends.
+The first argument takes current `ThreadId`.
+-}
+async : (ThreadId -> Procedure cmd memory event) -> Procedure cmd memory event
+async f =
     Procedure
-        [ SyncAll <| List.map (\(Procedure ps) -> ps) procs
+        [ Async <|
+            \a ->
+                f a
+                    |> (\(Procedure ps) -> ps)
+        ]
+
+
+{-| Blocks thread till all the given threads are complete.
+-}
+sync : List (ThreadId -> Procedure cmd memory event) -> Procedure cmd memory event
+sync fs =
+    Procedure
+        [ Sync <|
+            List.map
+                (\f tid ->
+                    let
+                        (Procedure ps) =
+                            f tid
+                    in
+                    ps
+                )
+                fs
+        ]
+
+
+{-| Blocks thread till one the given threads is complete.
+It cancels any other given threads in progress.
+-}
+race : List (ThreadId -> Procedure cmd memory event) -> Procedure cmd memory event
+race fs =
+    Procedure
+        [ Race <|
+            List.map
+                (\f tid ->
+                    let
+                        (Procedure ps) =
+                            f tid
+                    in
+                    ps
+                )
+                fs
         ]
 
 
 {-| -}
-quit : Procedure localCmd shared global local
+quit : Procedure cmd memory event
 quit =
     Procedure [ Quit ]
 
 
 {-| -}
-modifyAndThen : (shared -> ( shared, x )) -> (x -> Procedure localCmd shared global local) -> Procedure localCmd shared global local
+modifyAndThen : (ThreadId -> memory -> ( memory, x )) -> (ThreadId -> x -> Procedure cmd memory event) -> Procedure cmd memory event
 modifyAndThen f g =
     Procedure
         [ DoAndThen <|
-            \_ shared ->
+            \tid memory ->
                 let
-                    ( shared2, x ) =
-                        f shared
+                    ( memory2, x ) =
+                        f tid memory
 
                     (Procedure ps) =
-                        g x
+                        g tid x
                 in
-                ( shared2, [], ps )
+                ( memory2, [], ps )
         ]
 
 
 {-| -}
-lazy : (() -> Procedure localCmd shared global local) -> Procedure localCmd shared global local
-lazy f =
+addFinalizer : (ThreadId -> Procedure cmd memory event) -> Procedure cmd memory event
+addFinalizer f =
     Procedure
-        [ DoAndThen <|
-            \_ shared ->
-                ( shared, [], f () |> (\(Procedure ps) -> ps) )
+        [ AddFinalizer <|
+            \tid ->
+                let
+                    (Procedure ps) =
+                        f tid
+                in
+                ps
+        ]
+
+
+{-| -}
+jump : (ThreadId -> Procedure cmd memory event) -> Procedure cmd memory event
+jump f =
+    Procedure
+        [ Turn <|
+            \x ->
+                let
+                    (Procedure ps) =
+                        f x
+                in
+                ps
         ]

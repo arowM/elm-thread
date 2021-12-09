@@ -1,3 +1,7 @@
+# 3.0.0
+
+Improved overall design.
+
 # 2.2.0
 
 * Add advanced constructors for `Procedure`
@@ -8,6 +12,6 @@
 
 # 2.1.0
 
-### Improvements
+## Improvements
 
 * Add converter functions for SPA

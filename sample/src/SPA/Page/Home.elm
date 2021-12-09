@@ -1,31 +1,26 @@
 module SPA.Page.Home exposing
-    ( Global
-    , Local
-    , Shared
+    ( Event
+    , Memory
     , init
-    , procedure
+    , procedures
     )
 
-import Thread.Procedure exposing (Procedure)
+import Thread.Procedure exposing (Block)
 
 
-type Shared
-    = Shared
+type Memory
+    = Memory
 
 
-type Global
-    = Global
+type Event
+    = Event
 
 
-type Local
-    = Local
-
-
-init : Shared
+init : Memory
 init =
-    Shared
+    Memory
 
 
-procedure : Procedure Shared Global Local
-procedure =
+procedures : Block Memory Event
+procedures =
     Debug.todo ""
