@@ -1,3 +1,9 @@
+# 3.0.1
+
+## Improvements
+
+* Enhance README
+
 # 3.0.0
 
 Improved overall design.
