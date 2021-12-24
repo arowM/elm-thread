@@ -19,6 +19,9 @@ However, conventional TEA is not suitable for implementing such specifications: 
 
 With elm-thread, you can solve such drawbacks of TEA. As shown in the following example, it is possible to implement time series processing as it looks. What a magical library!
 
+**⚠️ WARNING: The purpose of the elm-thread is not to improve the performance of applications.**  
+Note the fact that I, the very author of elm-thread, insist it. Using the elm-thread for performance improvement is a bit like using Elm for developing backend apps: you can do it with tons of effort at your own risk, and don't bother anyone.
+
 # Terms
 
 The terms referred to in this document are defined as follows:
