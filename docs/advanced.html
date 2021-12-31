@@ -4369,6 +4369,10 @@ function _Browser_load(url)
 		}
 	}));
 }
+var $elm$core$Basics$apR = F2(
+	function (x, f) {
+		return f(x);
+	});
 var $elm$core$Basics$EQ = {$: 'EQ'};
 var $elm$core$Basics$GT = {$: 'GT'};
 var $elm$core$Basics$LT = {$: 'LT'};
@@ -4712,10 +4716,6 @@ var $elm$core$Array$Leaf = function (a) {
 };
 var $elm$core$Basics$apL = F2(
 	function (f, x) {
-		return f(x);
-	});
-var $elm$core$Basics$apR = F2(
-	function (x, f) {
 		return f(x);
 	});
 var $elm$core$Basics$eq = _Utils_equal;
@@ -5158,643 +5158,22 @@ var $elm$core$Task$perform = F2(
 				A2($elm$core$Task$map, toMessage, task)));
 	});
 var $elm$browser$Browser$document = _Browser_document;
-var $author$project$Thread$Procedure$Msg = function (a) {
-	return {$: 'Msg', a: a};
+var $author$project$Internal$peekMemory = function (_v0) {
+	var res = _v0.a;
+	return res.newState.memory;
 };
-var $author$project$Internal$GlobalEvent = function (a) {
-	return {$: 'GlobalEvent', a: a};
+var $author$project$Thread$Procedure$extractMemory = function (_v0) {
+	var model = _v0.a;
+	return $author$project$Internal$peekMemory(model.thread);
 };
-var $author$project$Internal$globalEvent = $author$project$Internal$GlobalEvent;
-var $author$project$Thread$Procedure$globalEvent = function (global) {
-	return $author$project$Thread$Procedure$Msg(
-		$author$project$Internal$globalEvent(global));
-};
-var $elm$virtual_dom$VirtualDom$map = _VirtualDom_map;
-var $elm$html$Html$map = $elm$virtual_dom$VirtualDom$map;
-var $author$project$Thread$Procedure$documentView = F2(
-	function (f, _v0) {
-		var model = _v0.a;
-		var doc = f(model.state.shared);
-		return {
-			body: A2(
-				$elm$core$List$map,
-				$elm$html$Html$map($author$project$Thread$Procedure$globalEvent),
-				doc.body),
-			title: doc.title
-		};
-	});
 var $author$project$Thread$Procedure$Model = function (a) {
 	return {$: 'Model', a: a};
-};
-var $elm$core$Platform$Cmd$batch = _Platform_batch;
-var $elm$core$Basics$composeL = F3(
-	function (g, f, x) {
-		return g(
-			f(x));
-	});
-var $elm$core$Platform$Cmd$map = _Platform_map;
-var $author$project$Internal$ThreadEvent = F2(
-	function (a, b) {
-		return {$: 'ThreadEvent', a: a, b: b};
-	});
-var $author$project$Internal$threadEvent = $author$project$Internal$ThreadEvent;
-var $author$project$Thread$Procedure$batchLocalCmds = function (cmds) {
-	return $elm$core$Platform$Cmd$batch(
-		A2(
-			$elm$core$List$map,
-			function (_v0) {
-				var tid = _v0.a;
-				var cmd = _v0.b;
-				return A2(
-					$elm$core$Platform$Cmd$map,
-					A2(
-						$elm$core$Basics$composeL,
-						$author$project$Thread$Procedure$Msg,
-						$author$project$Internal$threadEvent(tid)),
-					cmd);
-			},
-			cmds));
-};
-var $author$project$Internal$Async = function (a) {
-	return {$: 'Async', a: a};
-};
-var $author$project$Internal$EndOfThread = {$: 'EndOfThread'};
-var $author$project$Internal$cue = F2(
-	function (state, thread) {
-		switch (thread.$) {
-			case 'EndOfThread':
-				return {cmds: _List_Nil, newState: state, next: $author$project$Internal$EndOfThread};
-			case 'Async':
-				var t = thread.a;
-				var res = A2($author$project$Internal$cue, state, t);
-				return _Utils_update(
-					res,
-					{
-						next: $author$project$Internal$Async(res.next)
-					});
-			case 'WithoutMsg':
-				var f = thread.a;
-				var res1 = f(state);
-				var res2 = A2($author$project$Internal$cue, res1.newState, res1.next);
-				return _Utils_update(
-					res2,
-					{
-						cmds: _Utils_ap(res1.cmds, res2.cmds)
-					});
-			default:
-				return {cmds: _List_Nil, newState: state, next: thread};
-		}
-	});
-var $author$project$Internal$WithMsg = function (a) {
-	return {$: 'WithMsg', a: a};
-};
-var $author$project$Internal$WithoutMsg = function (a) {
-	return {$: 'WithoutMsg', a: a};
-};
-var $author$project$Internal$ThreadId$ThreadId = function (a) {
-	return {$: 'ThreadId', a: a};
-};
-var $author$project$Internal$ThreadId$inc = function (_v0) {
-	var n = _v0.a;
-	return $author$project$Internal$ThreadId$ThreadId(n + 1);
-};
-var $author$project$Internal$runInForkedThread = F2(
-	function (t1, t2) {
-		runInForkedThread:
-		while (true) {
-			var _v0 = _Utils_Tuple2(t1, t2);
-			_v0$0:
-			while (true) {
-				_v0$1:
-				while (true) {
-					_v0$2:
-					while (true) {
-						_v0$3:
-						while (true) {
-							_v0$4:
-							while (true) {
-								_v0$5:
-								while (true) {
-									switch (_v0.b.$) {
-										case 'EndOfThread':
-											switch (_v0.a.$) {
-												case 'EndOfThread':
-													break _v0$0;
-												case 'Async':
-													break _v0$1;
-												case 'WithoutMsg':
-													break _v0$1;
-												default:
-													break _v0$1;
-											}
-										case 'WithoutMsg':
-											switch (_v0.a.$) {
-												case 'EndOfThread':
-													break _v0$0;
-												case 'Async':
-													break _v0$2;
-												case 'WithoutMsg':
-													break _v0$5;
-												default:
-													var f2 = _v0.b.a;
-													return $author$project$Internal$WithoutMsg(
-														function (a) {
-															var res2 = f2(a);
-															return _Utils_update(
-																res2,
-																{
-																	next: A2($author$project$Internal$runInForkedThread, t1, res2.next)
-																});
-														});
-											}
-										case 'WithMsg':
-											switch (_v0.a.$) {
-												case 'EndOfThread':
-													break _v0$0;
-												case 'Async':
-													break _v0$2;
-												case 'WithoutMsg':
-													break _v0$5;
-												default:
-													var f1 = _v0.a.a;
-													var f2 = _v0.b.a;
-													return $author$project$Internal$WithMsg(
-														F2(
-															function (msg, a) {
-																var res1 = A2(f1, msg, a);
-																var res2 = A2(f2, msg, res1.newState);
-																return _Utils_update(
-																	res2,
-																	{
-																		cmds: _Utils_ap(res1.cmds, res2.cmds),
-																		next: A2($author$project$Internal$runInForkedThread, res1.next, res2.next)
-																	});
-															}));
-											}
-										default:
-											switch (_v0.a.$) {
-												case 'EndOfThread':
-													break _v0$0;
-												case 'Async':
-													break _v0$2;
-												case 'WithoutMsg':
-													switch (_v0.b.a.$) {
-														case 'EndOfThread':
-															break _v0$3;
-														case 'Async':
-															break _v0$4;
-														case 'WithoutMsg':
-															break _v0$5;
-														default:
-															break _v0$5;
-													}
-												default:
-													switch (_v0.b.a.$) {
-														case 'EndOfThread':
-															break _v0$3;
-														case 'Async':
-															break _v0$4;
-														case 'WithoutMsg':
-															var f2 = _v0.b.a.a;
-															return $author$project$Internal$WithoutMsg(
-																function (a) {
-																	var res2 = f2(a);
-																	return _Utils_update(
-																		res2,
-																		{
-																			next: A2(
-																				$author$project$Internal$runInForkedThread,
-																				t1,
-																				$author$project$Internal$Async(res2.next))
-																		});
-																});
-														default:
-															var f1 = _v0.a.a;
-															var f2 = _v0.b.a.a;
-															return $author$project$Internal$WithMsg(
-																F2(
-																	function (msg, a) {
-																		var res1 = A2(f1, msg, a);
-																		var res2 = A2(f2, msg, res1.newState);
-																		return _Utils_update(
-																			res2,
-																			{
-																				cmds: _Utils_ap(res1.cmds, res2.cmds),
-																				next: A2(
-																					$author$project$Internal$runInForkedThread,
-																					res1.next,
-																					$author$project$Internal$Async(res2.next))
-																			});
-																	}));
-													}
-											}
-									}
-								}
-								var f1 = _v0.a.a;
-								return $author$project$Internal$WithoutMsg(
-									function (a) {
-										var res1 = f1(a);
-										return _Utils_update(
-											res1,
-											{
-												next: A2($author$project$Internal$runInForkedThread, res1.next, t2)
-											});
-									});
-							}
-							var t2_ = _v0.b.a.a;
-							var $temp$t1 = t1,
-								$temp$t2 = $author$project$Internal$Async(t2_);
-							t1 = $temp$t1;
-							t2 = $temp$t2;
-							continue runInForkedThread;
-						}
-						var _v3 = _v0.b.a;
-						return t1;
-					}
-					var t1_ = _v0.a.a;
-					return $author$project$Internal$Async(
-						A2($author$project$Internal$runInForkedThread, t1_, t2));
-				}
-				var _v2 = _v0.b;
-				return t1;
-			}
-			var _v1 = _v0.a;
-			return t2;
-		}
-	});
-var $author$project$Internal$runInSameThread = F2(
-	function (t1, t2) {
-		var _v0 = _Utils_Tuple2(t1, t2);
-		_v0$1:
-		while (true) {
-			_v0$2:
-			while (true) {
-				_v0$3:
-				while (true) {
-					switch (_v0.a.$) {
-						case 'EndOfThread':
-							var _v1 = _v0.a;
-							return t2;
-						case 'Async':
-							switch (_v0.b.$) {
-								case 'EndOfThread':
-									break _v0$1;
-								case 'Async':
-									break _v0$2;
-								default:
-									break _v0$2;
-							}
-						case 'WithoutMsg':
-							switch (_v0.b.$) {
-								case 'EndOfThread':
-									break _v0$1;
-								case 'Async':
-									break _v0$3;
-								default:
-									var f1 = _v0.a.a;
-									return $author$project$Internal$WithoutMsg(
-										function (a) {
-											var res1 = f1(a);
-											return _Utils_update(
-												res1,
-												{
-													next: A2($author$project$Internal$runInSameThread, res1.next, t2)
-												});
-										});
-							}
-						default:
-							switch (_v0.b.$) {
-								case 'EndOfThread':
-									break _v0$1;
-								case 'Async':
-									break _v0$3;
-								default:
-									var f1 = _v0.a.a;
-									return $author$project$Internal$WithMsg(
-										F2(
-											function (msg, a) {
-												var res1 = A2(f1, msg, a);
-												return _Utils_update(
-													res1,
-													{
-														next: A2($author$project$Internal$runInSameThread, res1.next, t2)
-													});
-											}));
-							}
-					}
-				}
-				return A2($author$project$Internal$runInForkedThread, t1, t2);
-			}
-			return A2($author$project$Internal$runInForkedThread, t2, t1);
-		}
-		var _v2 = _v0.b;
-		return t1;
-	});
-var $author$project$Internal$fromProcedure_ = F2(
-	function (myThreadId, procs) {
-		if (!procs.b) {
-			return $author$project$Internal$EndOfThread;
-		} else {
-			switch (procs.a.$) {
-				case 'DoAndThen':
-					var f = procs.a.a;
-					var ps2 = procs.b;
-					return $author$project$Internal$WithoutMsg(
-						function (prevState) {
-							var _v1 = A2(f, _Utils_Tuple0, prevState.shared);
-							var shared1 = _v1.a;
-							var cmds1 = _v1.b;
-							var ps1 = _v1.c;
-							return {
-								cmds: A2(
-									$elm$core$List$map,
-									function (cmd) {
-										return _Utils_Tuple2(myThreadId, cmd);
-									},
-									cmds1),
-								newState: _Utils_update(
-									prevState,
-									{shared: shared1}),
-								next: A2(
-									$author$project$Internal$runInSameThread,
-									A2($author$project$Internal$fromProcedure_, myThreadId, ps1),
-									A2($author$project$Internal$fromProcedure_, myThreadId, ps2))
-							};
-						});
-				case 'Await':
-					var f = procs.a.a;
-					var ps2 = procs.b;
-					return $author$project$Internal$WithMsg(
-						F2(
-							function (msg, prevState) {
-								var _v2 = A3(f, myThreadId, msg, prevState.shared);
-								if (_v2.$ === 'Nothing') {
-									return {
-										cmds: _List_Nil,
-										newState: prevState,
-										next: A2($author$project$Internal$fromProcedure_, myThreadId, procs)
-									};
-								} else {
-									var ps1 = _v2.a;
-									return {
-										cmds: _List_Nil,
-										newState: prevState,
-										next: A2(
-											$author$project$Internal$runInSameThread,
-											A2($author$project$Internal$fromProcedure_, myThreadId, ps1),
-											A2($author$project$Internal$fromProcedure_, myThreadId, ps2))
-									};
-								}
-							}));
-				case 'Fork':
-					var f = procs.a.a;
-					var ps1 = procs.b;
-					return $author$project$Internal$WithoutMsg(
-						function (prevState) {
-							var ps2 = f(_Utils_Tuple0);
-							var newState = _Utils_update(
-								prevState,
-								{
-									nextThreadId: $author$project$Internal$ThreadId$inc(prevState.nextThreadId)
-								});
-							var forkedThreadId = prevState.nextThreadId;
-							var forked = A2($author$project$Internal$fromProcedure_, forkedThreadId, ps2);
-							var res = A2($author$project$Internal$cue, newState, forked);
-							return _Utils_update(
-								res,
-								{
-									next: A2(
-										$author$project$Internal$runInForkedThread,
-										A2($author$project$Internal$fromProcedure_, myThreadId, ps1),
-										$author$project$Internal$Async(res.next))
-								});
-						});
-				case 'SyncAll':
-					var pss = procs.a.a;
-					var ps2 = procs.b;
-					return $author$project$Internal$WithoutMsg(
-						function (prevState) {
-							var forked = A3(
-								$elm$core$List$foldl,
-								F2(
-									function (ps, acc) {
-										var forkedThreadId = acc.nextThreadId;
-										return {
-											next: A2(
-												$author$project$Internal$runInForkedThread,
-												acc.next,
-												A2($author$project$Internal$fromProcedure_, forkedThreadId, ps)),
-											nextThreadId: $author$project$Internal$ThreadId$inc(acc.nextThreadId)
-										};
-									}),
-								{next: $author$project$Internal$EndOfThread, nextThreadId: prevState.nextThreadId},
-								pss);
-							return {
-								cmds: _List_Nil,
-								newState: _Utils_update(
-									prevState,
-									{nextThreadId: forked.nextThreadId}),
-								next: A2(
-									$author$project$Internal$runInSameThread,
-									forked.next,
-									A2($author$project$Internal$fromProcedure_, myThreadId, ps2))
-							};
-						});
-				default:
-					var _v3 = procs.a;
-					return $author$project$Internal$EndOfThread;
-			}
-		}
-	});
-var $author$project$Internal$ThreadId$init = $author$project$Internal$ThreadId$ThreadId(0);
-var $author$project$Internal$fromProcedure = function (_v0) {
-	var ps = _v0.a;
-	return A2($author$project$Internal$fromProcedure_, $author$project$Internal$ThreadId$init, ps);
-};
-var $author$project$Internal$initialState = function (shared) {
-	return {
-		nextThreadId: $author$project$Internal$ThreadId$inc($author$project$Internal$ThreadId$init),
-		shared: shared
-	};
-};
-var $author$project$Thread$Procedure$init = F2(
-	function (shared, _v0) {
-		var proc = _v0.a;
-		var thread = $author$project$Internal$fromProcedure(proc);
-		var initialState = $author$project$Internal$initialState(shared);
-		var cued = A2($author$project$Internal$cue, initialState, thread);
-		return _Utils_Tuple2(
-			$author$project$Thread$Procedure$Model(
-				{state: cued.newState, thread: cued.next}),
-			$author$project$Thread$Procedure$batchLocalCmds(cued.cmds));
-	});
-var $elm$core$Platform$Sub$map = _Platform_map;
-var $author$project$Thread$Procedure$subscriptions = F2(
-	function (f, _v0) {
-		var model = _v0.a;
-		return A2(
-			$elm$core$Platform$Sub$map,
-			$author$project$Thread$Procedure$globalEvent,
-			f(model.state.shared));
-	});
-var $author$project$Internal$runWithMsg = F3(
-	function (msg, state, thread) {
-		var res = A2($author$project$Internal$cue, state, thread);
-		var _v0 = res.next;
-		switch (_v0.$) {
-			case 'EndOfThread':
-				return res;
-			case 'Async':
-				return res;
-			case 'WithoutMsg':
-				var res2 = A2($author$project$Internal$cue, res.newState, res.next);
-				return _Utils_update(
-					res2,
-					{
-						cmds: _Utils_ap(res.cmds, res2.cmds)
-					});
-			default:
-				var f = _v0.a;
-				var res2 = A2(f, msg, res.newState);
-				var res3 = A2($author$project$Internal$cue, res2.newState, res2.next);
-				return _Utils_update(
-					res3,
-					{
-						cmds: _Utils_ap(
-							res.cmds,
-							_Utils_ap(res2.cmds, res3.cmds))
-					});
-		}
-	});
-var $author$project$Thread$Procedure$update = F2(
-	function (_v0, _v1) {
-		var msg = _v0.a;
-		var model = _v1.a;
-		var res = A3($author$project$Internal$runWithMsg, msg, model.state, model.thread);
-		return _Utils_Tuple2(
-			$author$project$Thread$Procedure$Model(
-				{state: res.newState, thread: res.next}),
-			$author$project$Thread$Procedure$batchLocalCmds(res.cmds));
-	});
-var $author$project$Thread$Browser$document = function (option) {
-	return $elm$browser$Browser$document(
-		{
-			init: function (flags) {
-				return A2(
-					$author$project$Thread$Procedure$init,
-					option.init,
-					option.procedure(flags));
-			},
-			subscriptions: $author$project$Thread$Procedure$subscriptions(option.subscriptions),
-			update: $author$project$Thread$Procedure$update,
-			view: $author$project$Thread$Procedure$documentView(option.view)
-		});
-};
-var $author$project$Advanced$Resource$Resource = function (a) {
-	return {$: 'Resource', a: a};
-};
-var $author$project$Advanced$Resource$Id = function (a) {
-	return {$: 'Id', a: a};
-};
-var $author$project$Advanced$Resource$initId = $author$project$Advanced$Resource$Id(0);
-var $author$project$Advanced$Resource$empty = $author$project$Advanced$Resource$Resource(
-	{list: _List_Nil, nextId: $author$project$Advanced$Resource$initId});
-var $author$project$Advanced$init = {cards: $author$project$Advanced$Resource$empty};
-var $author$project$Advanced$GoatCard$Shared = function (a) {
-	return {$: 'Shared', a: a};
-};
-var $author$project$Advanced$GoatCard$init = $author$project$Advanced$GoatCard$Shared(
-	{
-		form: {name: ''},
-		onEditing: true,
-		saved: {name: ''}
-	});
-var $author$project$Advanced$Resource$incId = function (_v0) {
-	var n = _v0.a;
-	return $author$project$Advanced$Resource$Id(n + 1);
-};
-var $author$project$Advanced$Resource$push = F2(
-	function (a, _v0) {
-		var resource = _v0.a;
-		return _Utils_Tuple2(
-			resource.nextId,
-			$author$project$Advanced$Resource$Resource(
-				_Utils_update(
-					resource,
-					{
-						list: _Utils_ap(
-							resource.list,
-							_List_fromArray(
-								[
-									_Utils_Tuple2(resource.nextId, a)
-								])),
-						nextId: $author$project$Advanced$Resource$incId(resource.nextId)
-					})));
-	});
-var $author$project$Advanced$addGoatCardAnd = function (shared) {
-	var _v0 = A2($author$project$Advanced$Resource$push, $author$project$Advanced$GoatCard$init, shared.cards);
-	var rid = _v0.a;
-	var newCards = _v0.b;
-	return _Utils_Tuple2(
-		_Utils_update(
-			shared,
-			{cards: newCards}),
-		rid);
 };
 var $author$project$Thread$Procedure$Procedure = function (a) {
 	return {$: 'Procedure', a: a};
 };
-var $author$project$Internal$Await = function (a) {
-	return {$: 'Await', a: a};
-};
 var $author$project$Internal$Procedure = function (a) {
 	return {$: 'Procedure', a: a};
-};
-var $elm$core$Maybe$map = F2(
-	function (f, maybe) {
-		if (maybe.$ === 'Just') {
-			var value = maybe.a;
-			return $elm$core$Maybe$Just(
-				f(value));
-		} else {
-			return $elm$core$Maybe$Nothing;
-		}
-	});
-var $author$project$Internal$awaitGlobal = function (f) {
-	return $author$project$Internal$Procedure(
-		_List_fromArray(
-			[
-				$author$project$Internal$Await(
-				F3(
-					function (_v0, msg, shared) {
-						if (msg.$ === 'GlobalEvent') {
-							var global = msg.a;
-							return A2(
-								$elm$core$Maybe$map,
-								function (_v2) {
-									var ps = _v2.a;
-									return ps;
-								},
-								A2(f, global, shared));
-						} else {
-							return $elm$core$Maybe$Nothing;
-						}
-					}))
-			]));
-};
-var $author$project$Thread$Procedure$awaitGlobal = function (f) {
-	return $author$project$Thread$Procedure$Procedure(
-		$author$project$Internal$awaitGlobal(
-			F2(
-				function (global, shared) {
-					return A2(
-						$elm$core$Maybe$map,
-						function (_v0) {
-							var proc = _v0.a;
-							return proc;
-						},
-						A2(f, global, shared));
-				})));
 };
 var $elm$core$List$append = F2(
 	function (xs, ys) {
@@ -5833,14 +5212,1222 @@ var $author$project$Thread$Procedure$batch = function (procs) {
 				},
 				procs)));
 };
-var $author$project$Internal$Fork = function (a) {
-	return {$: 'Fork', a: a};
+var $author$project$Thread$Procedure$Msg = function (a) {
+	return {$: 'Msg', a: a};
 };
-var $author$project$Internal$fork = function (f) {
+var $elm$core$Platform$Cmd$batch = _Platform_batch;
+var $elm$core$Platform$Cmd$map = _Platform_map;
+var $author$project$Thread$Procedure$batchLocalCmds = function (cmds) {
+	return $elm$core$Platform$Cmd$batch(
+		A2(
+			$elm$core$List$map,
+			function (_v0) {
+				var cmd = _v0.b;
+				return A2($elm$core$Platform$Cmd$map, $author$project$Thread$Procedure$Msg, cmd);
+			},
+			cmds));
+};
+var $author$project$Internal$Completed = function (a) {
+	return {$: 'Completed', a: a};
+};
+var $author$project$Internal$Running = function (a) {
+	return {$: 'Running', a: a};
+};
+var $author$project$Internal$Finalizing = function (a) {
+	return {$: 'Finalizing', a: a};
+};
+var $author$project$Internal$andForks = F2(
+	function (forked, fp) {
+		switch (fp.$) {
+			case 'Running':
+				var to = fp.a;
+				return $author$project$Internal$Running(
+					_Utils_update(
+						to,
+						{
+							forks: function (s) {
+								return A2(
+									$author$project$Internal$cyclic$andIndependently(),
+									forked,
+									to.forks(s));
+							}
+						}));
+			case 'Finalizing':
+				var to = fp.a;
+				return $author$project$Internal$Finalizing(
+					_Utils_update(
+						to,
+						{
+							forks: function (s) {
+								return A2(
+									$author$project$Internal$cyclic$andIndependently(),
+									forked,
+									to.forks(s));
+							}
+						}));
+			default:
+				var to = fp.a;
+				return $author$project$Internal$Finalizing(
+					{cmds: to.cmds, forks: forked, newState: to.newState});
+		}
+	});
+function $author$project$Internal$cyclic$andIndependently() {
+	return $author$project$Internal$andForks;
+}
+try {
+	var $author$project$Internal$andIndependently = $author$project$Internal$cyclic$andIndependently();
+	$author$project$Internal$cyclic$andIndependently = function () {
+		return $author$project$Internal$andIndependently;
+	};
+} catch ($) {
+	throw 'Some top-level definitions from `Internal` are causing infinite recursion:\n\n  ┌─────┐\n  │    andIndependently\n  │     ↓\n  │    andForks\n  └─────┘\n\nThese errors are very tricky, so read https://elm-lang.org/0.19.1/bad-recursion to learn how to fix it!';}
+var $author$project$Internal$andAsync = F2(
+	function (f, fp) {
+		switch (fp.$) {
+			case 'Running':
+				var o = fp.a;
+				var _v1 = f(o.newState);
+				switch (_v1.$) {
+					case 'Running':
+						var oasync = _v1.a;
+						return $author$project$Internal$Running(
+							{
+								cmds: _Utils_ap(o.cmds, oasync.cmds),
+								_finally: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										oasync._finally,
+										o._finally(s));
+								},
+								forks: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										oasync.forks,
+										o.forks(s));
+								},
+								newState: oasync.newState,
+								next: F2(
+									function (msg, s) {
+										return A2(
+											$author$project$Internal$andAsync,
+											oasync.next(msg),
+											A2(o.next, msg, s));
+									})
+							});
+					case 'Finalizing':
+						var oasync = _v1.a;
+						return $author$project$Internal$Running(
+							{
+								cmds: _Utils_ap(o.cmds, oasync.cmds),
+								_finally: o._finally,
+								forks: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										oasync.forks,
+										o.forks(s));
+								},
+								newState: oasync.newState,
+								next: o.next
+							});
+					default:
+						var oasync = _v1.a;
+						return $author$project$Internal$Running(
+							{
+								cmds: _Utils_ap(o.cmds, oasync.cmds),
+								_finally: o._finally,
+								forks: o.forks,
+								newState: oasync.newState,
+								next: o.next
+							});
+				}
+			case 'Finalizing':
+				var o = fp.a;
+				var _v2 = f(o.newState);
+				switch (_v2.$) {
+					case 'Running':
+						var oasync = _v2.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, oasync.cmds),
+								forks: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										oasync._finally,
+										A2(
+											$author$project$Internal$andIndependently,
+											oasync.forks,
+											o.forks(s)));
+								},
+								newState: oasync.newState
+							});
+					case 'Finalizing':
+						var oasync = _v2.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, oasync.cmds),
+								forks: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										oasync.forks,
+										o.forks(s));
+								},
+								newState: oasync.newState
+							});
+					default:
+						var oasync = _v2.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, oasync.cmds),
+								forks: o.forks,
+								newState: oasync.newState
+							});
+				}
+			default:
+				var o = fp.a;
+				var _v3 = f(o.newState);
+				switch (_v3.$) {
+					case 'Running':
+						var oasync = _v3.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, oasync.cmds),
+								forks: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										oasync._finally,
+										oasync.forks(s));
+								},
+								newState: oasync.newState
+							});
+					case 'Finalizing':
+						var oasync = _v3.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, oasync.cmds),
+								forks: oasync.forks,
+								newState: oasync.newState
+							});
+					default:
+						var oasync = _v3.a;
+						return $author$project$Internal$Completed(
+							{
+								cmds: _Utils_ap(o.cmds, oasync.cmds),
+								newState: oasync.newState
+							});
+				}
+		}
+	});
+var $author$project$Internal$andNextDep = F2(
+	function (f, fp) {
+		switch (fp.$) {
+			case 'Running':
+				var o = fp.a;
+				var _v1 = f(o.newState);
+				switch (_v1.$) {
+					case 'Running':
+						var o2 = _v1.a;
+						return $author$project$Internal$Running(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								_finally: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										o2._finally,
+										o._finally(s));
+								},
+								forks: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										o2.forks,
+										o.forks(s));
+								},
+								newState: o2.newState,
+								next: F2(
+									function (msg, s) {
+										return A2(
+											$author$project$Internal$andNextDep,
+											o2.next(msg),
+											A2(o.next, msg, s));
+									})
+							});
+					case 'Finalizing':
+						var o2 = _v1.a;
+						return $author$project$Internal$Running(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								_finally: o._finally,
+								forks: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										o2.forks,
+										o.forks(s));
+								},
+								newState: o2.newState,
+								next: o.next
+							});
+					default:
+						var o2 = _v1.a;
+						return $author$project$Internal$Running(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								_finally: o._finally,
+								forks: o.forks,
+								newState: o2.newState,
+								next: o.next
+							});
+				}
+			case 'Finalizing':
+				var o = fp.a;
+				var _v2 = f(o.newState);
+				switch (_v2.$) {
+					case 'Running':
+						var o2 = _v2.a;
+						return $author$project$Internal$Running(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								_finally: o2._finally,
+								forks: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										o2.forks,
+										o.forks(s));
+								},
+								newState: o2.newState,
+								next: o2.next
+							});
+					case 'Finalizing':
+						var o2 = _v2.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								forks: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										o2.forks,
+										o.forks(s));
+								},
+								newState: o2.newState
+							});
+					default:
+						var o2 = _v2.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								forks: o.forks,
+								newState: o2.newState
+							});
+				}
+			default:
+				var o = fp.a;
+				var _v3 = f(o.newState);
+				switch (_v3.$) {
+					case 'Running':
+						var o2 = _v3.a;
+						return $author$project$Internal$Running(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								_finally: o2._finally,
+								forks: o2.forks,
+								newState: o2.newState,
+								next: o2.next
+							});
+					case 'Finalizing':
+						var o2 = _v3.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								forks: o2.forks,
+								newState: o2.newState
+							});
+					default:
+						var o2 = _v3.a;
+						return $author$project$Internal$Completed(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								newState: o2.newState
+							});
+				}
+		}
+	});
+var $author$project$Internal$andNextRaceDep = F2(
+	function (f, acc) {
+		switch (acc.$) {
+			case 'Running':
+				var o = acc.a;
+				var _v1 = f(o.newState);
+				switch (_v1.$) {
+					case 'Running':
+						var o2 = _v1.a;
+						return $author$project$Internal$Running(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								_finally: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										o2._finally,
+										o._finally(s));
+								},
+								forks: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										o2.forks,
+										o.forks(s));
+								},
+								newState: o2.newState,
+								next: F2(
+									function (msg, s) {
+										return A2(
+											$author$project$Internal$andNextRaceDep,
+											o2.next(msg),
+											A2(o.next, msg, s));
+									})
+							});
+					case 'Finalizing':
+						var o2 = _v1.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								forks: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										o._finally,
+										A2(
+											$author$project$Internal$andIndependently,
+											o2.forks,
+											o.forks(s)));
+								},
+								newState: o2.newState
+							});
+					default:
+						var o2 = _v1.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								forks: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										o._finally,
+										o.forks(s));
+								},
+								newState: o2.newState
+							});
+				}
+			case 'Finalizing':
+				var o = acc.a;
+				var _v2 = f(o.newState);
+				switch (_v2.$) {
+					case 'Running':
+						var o2 = _v2.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								forks: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										o2._finally,
+										A2(
+											$author$project$Internal$andIndependently,
+											o2.forks,
+											o.forks(s)));
+								},
+								newState: o2.newState
+							});
+					case 'Finalizing':
+						var o2 = _v2.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								forks: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										o2.forks,
+										o.forks(s));
+								},
+								newState: o2.newState
+							});
+					default:
+						var o2 = _v2.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								forks: o.forks,
+								newState: o2.newState
+							});
+				}
+			default:
+				var o = acc.a;
+				var _v3 = f(o.newState);
+				switch (_v3.$) {
+					case 'Running':
+						var o2 = _v3.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								forks: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										o2._finally,
+										o2.forks(s));
+								},
+								newState: o2.newState
+							});
+					case 'Finalizing':
+						var o2 = _v3.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								forks: o2.forks,
+								newState: o2.newState
+							});
+					default:
+						var o2 = _v3.a;
+						return $author$project$Internal$Completed(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								newState: o2.newState
+							});
+				}
+		}
+	});
+var $author$project$Internal$andThen = F2(
+	function (f, fp) {
+		switch (fp.$) {
+			case 'Running':
+				var o = fp.a;
+				return $author$project$Internal$Running(
+					_Utils_update(
+						o,
+						{
+							next: F2(
+								function (msg, s) {
+									return A2(
+										$author$project$Internal$andThen,
+										f,
+										A2(o.next, msg, s));
+								})
+						}));
+			case 'Finalizing':
+				var o = fp.a;
+				var _v1 = f(o.newState);
+				switch (_v1.$) {
+					case 'Running':
+						var o2 = _v1.a;
+						return $author$project$Internal$Running(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								_finally: o2._finally,
+								forks: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										o2.forks,
+										o.forks(s));
+								},
+								newState: o2.newState,
+								next: o2.next
+							});
+					case 'Finalizing':
+						var o2 = _v1.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								forks: function (s) {
+									return A2(
+										$author$project$Internal$andIndependently,
+										o2.forks,
+										o.forks(s));
+								},
+								newState: o2.newState
+							});
+					default:
+						var o2 = _v1.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								forks: o.forks,
+								newState: o2.newState
+							});
+				}
+			default:
+				var o = fp.a;
+				var _v2 = f(o.newState);
+				switch (_v2.$) {
+					case 'Running':
+						var o2 = _v2.a;
+						return $author$project$Internal$Running(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								_finally: o2._finally,
+								forks: o2.forks,
+								newState: o2.newState,
+								next: o2.next
+							});
+					case 'Finalizing':
+						var o2 = _v2.a;
+						return $author$project$Internal$Finalizing(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								forks: o2.forks,
+								newState: o2.newState
+							});
+					default:
+						var o2 = _v2.a;
+						return $author$project$Internal$Completed(
+							{
+								cmds: _Utils_ap(o.cmds, o2.cmds),
+								newState: o2.newState
+							});
+				}
+		}
+	});
+var $author$project$Internal$applyFinally = F2(
+	function (f, fp) {
+		switch (fp.$) {
+			case 'Running':
+				var o = fp.a;
+				return $author$project$Internal$Running(
+					_Utils_update(
+						o,
+						{
+							_finally: function (s) {
+								return A2(
+									$author$project$Internal$andIndependently,
+									o._finally,
+									f(s));
+							},
+							next: F2(
+								function (msg, s) {
+									return A2(
+										$author$project$Internal$applyFinally,
+										f,
+										A2(o.next, msg, s));
+								})
+						}));
+			case 'Finalizing':
+				var o = fp.a;
+				return $author$project$Internal$Finalizing(
+					_Utils_update(
+						o,
+						{
+							forks: function (s) {
+								return A2(
+									$author$project$Internal$andIndependently,
+									o.forks,
+									f(s));
+							}
+						}));
+			default:
+				var o = fp.a;
+				return $author$project$Internal$Finalizing(
+					{cmds: o.cmds, forks: f, newState: o.newState});
+		}
+	});
+var $author$project$Internal$ThreadId$ThreadId = function (a) {
+	return {$: 'ThreadId', a: a};
+};
+var $author$project$Internal$SafeInt$SafeInt = function (a) {
+	return {$: 'SafeInt', a: a};
+};
+var $elm$core$Basics$ge = _Utils_ge;
+var $author$project$Internal$SafeInt$maxBound_ = 2147483647;
+var $elm$core$Basics$negate = function (n) {
+	return -n;
+};
+var $author$project$Internal$SafeInt$minBound_ = -2147483648;
+var $author$project$Internal$SafeInt$minBound = $author$project$Internal$SafeInt$SafeInt($author$project$Internal$SafeInt$minBound_);
+var $author$project$Internal$SafeInt$inc = function (_v0) {
+	var n = _v0.a;
+	return (_Utils_cmp(n, $author$project$Internal$SafeInt$maxBound_) > -1) ? _Utils_Tuple2(true, $author$project$Internal$SafeInt$minBound) : _Utils_Tuple2(
+		false,
+		$author$project$Internal$SafeInt$SafeInt(n + 1));
+};
+var $elm$core$Tuple$mapSecond = F2(
+	function (func, _v0) {
+		var x = _v0.a;
+		var y = _v0.b;
+		return _Utils_Tuple2(
+			x,
+			func(y));
+	});
+var $author$project$Internal$ThreadId$incList = A2(
+	$elm$core$List$foldr,
+	F2(
+		function (a, _v0) {
+			var carry = _v0.a;
+			var ls = _v0.b;
+			return carry ? A2(
+				$elm$core$Tuple$mapSecond,
+				function (_new) {
+					return A2($elm$core$List$cons, _new, ls);
+				},
+				$author$project$Internal$SafeInt$inc(a)) : _Utils_Tuple2(
+				false,
+				A2($elm$core$List$cons, a, ls));
+		}),
+	_Utils_Tuple2(true, _List_Nil));
+var $author$project$Internal$ThreadId$inc = function (_v0) {
+	var ls = _v0.a;
+	var _v1 = $author$project$Internal$ThreadId$incList(ls);
+	if (_v1.a) {
+		var _new = _v1.b;
+		return $author$project$Internal$ThreadId$ThreadId(
+			A2($elm$core$List$cons, $author$project$Internal$SafeInt$minBound, _new));
+	} else {
+		var _new = _v1.b;
+		return $author$project$Internal$ThreadId$ThreadId(_new);
+	}
+};
+var $author$project$Internal$noProcedure = function (s) {
+	return $author$project$Internal$Completed(
+		{cmds: _List_Nil, newState: s});
+};
+var $author$project$Internal$prependCmds = F2(
+	function (cmds, fp) {
+		switch (fp.$) {
+			case 'Running':
+				var o = fp.a;
+				return $author$project$Internal$Running(
+					_Utils_update(
+						o,
+						{
+							cmds: _Utils_ap(cmds, o.cmds)
+						}));
+			case 'Finalizing':
+				var o = fp.a;
+				return $author$project$Internal$Finalizing(
+					_Utils_update(
+						o,
+						{
+							cmds: _Utils_ap(cmds, o.cmds)
+						}));
+			default:
+				var o = fp.a;
+				return $author$project$Internal$Completed(
+					_Utils_update(
+						o,
+						{
+							cmds: _Utils_ap(cmds, o.cmds)
+						}));
+		}
+	});
+var $author$project$Internal$fromProcDeps = F3(
+	function (state, parents, fs) {
+		return A3(
+			$elm$core$List$foldl,
+			F2(
+				function (f, acc) {
+					return A2(
+						$author$project$Internal$andNextDep,
+						function (s) {
+							return A4(
+								$author$project$Internal$fromProcedure_,
+								s.nextThreadId,
+								_Utils_update(
+									s,
+									{
+										nextThreadId: $author$project$Internal$ThreadId$inc(s.nextThreadId)
+									}),
+								parents,
+								f(s.nextThreadId));
+						},
+						acc);
+				}),
+			$author$project$Internal$noProcedure(state),
+			fs);
+	});
+var $author$project$Internal$fromProcRaceDeps = F3(
+	function (state, parents, fs) {
+		if (!fs.b) {
+			return $author$project$Internal$noProcedure(state);
+		} else {
+			var g = fs.a;
+			var gs = fs.b;
+			return A3(
+				$elm$core$List$foldl,
+				F2(
+					function (f, acc) {
+						return A2(
+							$author$project$Internal$andNextRaceDep,
+							function (s) {
+								return A4(
+									$author$project$Internal$fromProcedure_,
+									s.nextThreadId,
+									_Utils_update(
+										s,
+										{
+											nextThreadId: $author$project$Internal$ThreadId$inc(s.nextThreadId)
+										}),
+									parents,
+									f(s.nextThreadId));
+							},
+							acc);
+					}),
+				A4(
+					$author$project$Internal$fromProcedure_,
+					state.nextThreadId,
+					_Utils_update(
+						state,
+						{
+							nextThreadId: $author$project$Internal$ThreadId$inc(state.nextThreadId)
+						}),
+					parents,
+					g(state.nextThreadId)),
+				gs);
+		}
+	});
+var $author$project$Internal$fromProcedure_ = F4(
+	function (myThreadId, state, parents, procs) {
+		fromProcedure_:
+		while (true) {
+			if (!procs.b) {
+				return $author$project$Internal$Completed(
+					{cmds: _List_Nil, newState: state});
+			} else {
+				switch (procs.a.$) {
+					case 'DoAndThen':
+						var f = procs.a.a;
+						var ps2 = procs.b;
+						var _v1 = A2(f, myThreadId, state.memory);
+						var memory1 = _v1.a;
+						var cmds1 = _v1.b;
+						var ps1 = _v1.c;
+						var newState = _Utils_update(
+							state,
+							{memory: memory1});
+						return A2(
+							$author$project$Internal$prependCmds,
+							A2(
+								$elm$core$List$map,
+								function (c) {
+									return _Utils_Tuple2(myThreadId, c);
+								},
+								cmds1),
+							A4(
+								$author$project$Internal$fromProcedure_,
+								myThreadId,
+								newState,
+								parents,
+								_Utils_ap(ps1, ps2)));
+					case 'Do':
+						var f = procs.a.a;
+						var ps2 = procs.b;
+						var _v2 = A2(f, myThreadId, state.memory);
+						var memory1 = _v2.a;
+						var cmds1 = _v2.b;
+						var newState = _Utils_update(
+							state,
+							{memory: memory1});
+						return A2(
+							$author$project$Internal$prependCmds,
+							A2(
+								$elm$core$List$map,
+								function (c) {
+									return _Utils_Tuple2(myThreadId, c);
+								},
+								cmds1),
+							A4($author$project$Internal$fromProcedure_, myThreadId, newState, parents, ps2));
+					case 'AddFinalizer':
+						var f = procs.a.a;
+						var ps2 = procs.b;
+						var ps1 = f(myThreadId);
+						return A2(
+							$author$project$Internal$applyFinally,
+							function (s) {
+								return A4($author$project$Internal$fromProcedure_, myThreadId, s, parents, ps1);
+							},
+							A4($author$project$Internal$fromProcedure_, myThreadId, state, parents, ps2));
+					case 'Await':
+						var f = procs.a.a;
+						var ps2 = procs.b;
+						return $author$project$Internal$Running(
+							{
+								cmds: _List_Nil,
+								_finally: $author$project$Internal$noProcedure,
+								forks: $author$project$Internal$noProcedure,
+								newState: state,
+								next: F2(
+									function (msg, s) {
+										var _v3 = A3(
+											f,
+											A2($elm$core$List$cons, myThreadId, parents),
+											msg,
+											s.memory);
+										if (_v3.$ === 'Just') {
+											var ps1 = _v3.a;
+											return A4(
+												$author$project$Internal$fromProcedure_,
+												myThreadId,
+												s,
+												parents,
+												_Utils_ap(ps1, ps2));
+										} else {
+											return A4($author$project$Internal$fromProcedure_, myThreadId, s, parents, procs);
+										}
+									})
+							});
+					case 'Async':
+						var f = procs.a.a;
+						var ps2 = procs.b;
+						var newState = _Utils_update(
+							state,
+							{
+								nextThreadId: $author$project$Internal$ThreadId$inc(state.nextThreadId)
+							});
+						var asyncedThreadId = state.nextThreadId;
+						var asynced = function (s) {
+							return A4(
+								$author$project$Internal$fromProcedure_,
+								asyncedThreadId,
+								s,
+								A2($elm$core$List$cons, myThreadId, parents),
+								f(asyncedThreadId));
+						};
+						return A2(
+							$author$project$Internal$andAsync,
+							asynced,
+							A4($author$project$Internal$fromProcedure_, myThreadId, newState, parents, ps2));
+					case 'Fork':
+						var f = procs.a.a;
+						var ps2 = procs.b;
+						var newState = _Utils_update(
+							state,
+							{
+								nextThreadId: $author$project$Internal$ThreadId$inc(state.nextThreadId)
+							});
+						var forkedThreadId = state.nextThreadId;
+						var forked = function (s) {
+							return A4(
+								$author$project$Internal$fromProcedure_,
+								forkedThreadId,
+								s,
+								A2($elm$core$List$cons, myThreadId, parents),
+								f(forkedThreadId));
+						};
+						return A2(
+							$author$project$Internal$andForks,
+							forked,
+							A4($author$project$Internal$fromProcedure_, myThreadId, newState, parents, ps2));
+					case 'Sync':
+						var fs = procs.a.a;
+						var ps2 = procs.b;
+						return A2(
+							$author$project$Internal$andThen,
+							function (s) {
+								return A4($author$project$Internal$fromProcedure_, myThreadId, s, parents, ps2);
+							},
+							A3(
+								$author$project$Internal$fromProcDeps,
+								state,
+								A2($elm$core$List$cons, myThreadId, parents),
+								fs));
+					case 'Race':
+						var fs = procs.a.a;
+						var ps2 = procs.b;
+						return A2(
+							$author$project$Internal$andThen,
+							function (s) {
+								return A4($author$project$Internal$fromProcedure_, myThreadId, s, parents, ps2);
+							},
+							A3(
+								$author$project$Internal$fromProcRaceDeps,
+								state,
+								A2($elm$core$List$cons, myThreadId, parents),
+								fs));
+					case 'Turn':
+						var f = procs.a.a;
+						var ps2 = procs.b;
+						var ps1 = f(myThreadId);
+						var $temp$myThreadId = myThreadId,
+							$temp$state = state,
+							$temp$parents = parents,
+							$temp$procs = ps1;
+						myThreadId = $temp$myThreadId;
+						state = $temp$state;
+						parents = $temp$parents;
+						procs = $temp$procs;
+						continue fromProcedure_;
+					default:
+						var _v4 = procs.a;
+						return $author$project$Internal$noProcedure(state);
+				}
+			}
+		}
+	});
+var $author$project$Internal$ThreadId$init = $author$project$Internal$ThreadId$ThreadId(
+	_List_fromArray(
+		[$author$project$Internal$SafeInt$minBound]));
+var $author$project$Internal$initialState = function (memory) {
+	return {
+		memory: memory,
+		nextThreadId: $author$project$Internal$ThreadId$inc($author$project$Internal$ThreadId$init)
+	};
+};
+var $author$project$Internal$Thread = function (a) {
+	return {$: 'Thread', a: a};
+};
+var $elm$core$Basics$composeR = F3(
+	function (f, g, x) {
+		return g(
+			f(x));
+	});
+var $author$project$Internal$mergeIndependently = F2(
+	function (f, _v0) {
+		var t = _v0.a;
+		var _v1 = f(t.newState);
+		var t2 = _v1.a;
+		return $author$project$Internal$Thread(
+			{
+				cmds: _Utils_ap(t.cmds, t2.cmds),
+				newState: t2.newState,
+				next: F2(
+					function (msg, s) {
+						return A2(
+							$author$project$Internal$mergeIndependently,
+							t2.next(msg),
+							A2(t.next, msg, s));
+					})
+			});
+	});
+var $author$project$Internal$pureThread = function (state) {
+	return $author$project$Internal$Thread(
+		{
+			cmds: _List_Nil,
+			newState: state,
+			next: function (_v0) {
+				return $author$project$Internal$pureThread;
+			}
+		});
+};
+var $author$project$Internal$digForks = F2(
+	function (f, _v3) {
+		var t = _v3.a;
+		var _v4 = f(t.newState);
+		switch (_v4.$) {
+			case 'Running':
+				var o = _v4.a;
+				return A2(
+					$author$project$Internal$digForks,
+					o.forks,
+					$author$project$Internal$Thread(
+						{
+							cmds: _Utils_ap(t.cmds, o.cmds),
+							newState: o.newState,
+							next: F2(
+								function (msg, s) {
+									return A2(
+										$author$project$Internal$mergeIndependently,
+										A2(
+											$elm$core$Basics$composeR,
+											o.next(msg),
+											$author$project$Internal$toThread),
+										A2(t.next, msg, s));
+								})
+						}));
+			case 'Finalizing':
+				var o = _v4.a;
+				return A2(
+					$author$project$Internal$digForks,
+					o.forks,
+					$author$project$Internal$Thread(
+						{
+							cmds: _Utils_ap(t.cmds, o.cmds),
+							newState: o.newState,
+							next: t.next
+						}));
+			default:
+				var o = _v4.a;
+				return $author$project$Internal$Thread(
+					{
+						cmds: _Utils_ap(t.cmds, o.cmds),
+						newState: o.newState,
+						next: t.next
+					});
+		}
+	});
+var $author$project$Internal$toThread = function (fp) {
+	switch (fp.$) {
+		case 'Running':
+			var o = fp.a;
+			return A2(
+				$author$project$Internal$digForks,
+				o.forks,
+				$author$project$Internal$Thread(
+					{
+						cmds: o.cmds,
+						newState: o.newState,
+						next: F2(
+							function (msg, s) {
+								return $author$project$Internal$toThread(
+									A2(o.next, msg, s));
+							})
+					}));
+		case 'Finalizing':
+			var o = fp.a;
+			return A2(
+				$author$project$Internal$digForks,
+				o.forks,
+				$author$project$Internal$Thread(
+					{
+						cmds: o.cmds,
+						newState: o.newState,
+						next: function (_v1) {
+							return $author$project$Internal$pureThread;
+						}
+					}));
+		default:
+			var o = fp.a;
+			return $author$project$Internal$Thread(
+				{
+					cmds: o.cmds,
+					newState: o.newState,
+					next: function (_v2) {
+						return $author$project$Internal$pureThread;
+					}
+				});
+	}
+};
+var $author$project$Internal$fromProcedure = F2(
+	function (initialMemory, _v0) {
+		var ps = _v0.a;
+		return $author$project$Internal$toThread(
+			A4(
+				$author$project$Internal$fromProcedure_,
+				$author$project$Internal$ThreadId$init,
+				$author$project$Internal$initialState(initialMemory),
+				_List_Nil,
+				ps));
+	});
+var $author$project$Thread$Procedure$ThreadId = function (a) {
+	return {$: 'ThreadId', a: a};
+};
+var $author$project$Thread$Procedure$initThreadId = $author$project$Thread$Procedure$ThreadId($author$project$Internal$ThreadId$init);
+var $author$project$Internal$threadCmds = function (_v0) {
+	var res = _v0.a;
+	return res.cmds;
+};
+var $author$project$Thread$Procedure$init = F2(
+	function (memory, f) {
+		var _v0 = $author$project$Thread$Procedure$batch(
+			f($author$project$Thread$Procedure$initThreadId));
+		var proc = _v0.a;
+		var thread = A2($author$project$Internal$fromProcedure, memory, proc);
+		return _Utils_Tuple2(
+			$author$project$Thread$Procedure$Model(
+				{thread: thread}),
+			$author$project$Thread$Procedure$batchLocalCmds(
+				$author$project$Internal$threadCmds(thread)));
+	});
+var $author$project$Internal$run = F2(
+	function (msg, _v0) {
+		var t = _v0.a;
+		return A2(t.next, msg, t.newState);
+	});
+var $author$project$Thread$Procedure$update = F2(
+	function (_v0, _v1) {
+		var msg = _v0.a;
+		var model = _v1.a;
+		var res = A2($author$project$Internal$run, msg, model.thread);
+		return _Utils_Tuple2(
+			$author$project$Thread$Procedure$Model(
+				{thread: res}),
+			$author$project$Thread$Procedure$batchLocalCmds(
+				$author$project$Internal$threadCmds(res)));
+	});
+var $author$project$Thread$Browser$document = function (option) {
+	return $elm$browser$Browser$document(
+		{
+			init: function (flags) {
+				return A2(
+					$author$project$Thread$Procedure$init,
+					option.init,
+					option.procedures(flags));
+			},
+			subscriptions: function (model) {
+				return A2(
+					option.subscriptions,
+					$author$project$Thread$Procedure$initThreadId,
+					$author$project$Thread$Procedure$extractMemory(model));
+			},
+			update: $author$project$Thread$Procedure$update,
+			view: function (model) {
+				return A2(
+					option.view,
+					$author$project$Thread$Procedure$initThreadId,
+					$author$project$Thread$Procedure$extractMemory(model));
+			}
+		});
+};
+var $elm$core$Platform$Sub$map = _Platform_map;
+var $author$project$Internal$ThreadEvent = F2(
+	function (a, b) {
+		return {$: 'ThreadEvent', a: a, b: b};
+	});
+var $author$project$Internal$setTarget = $author$project$Internal$ThreadEvent;
+var $author$project$Thread$Procedure$setTarget = F2(
+	function (_v0, event) {
+		var tid = _v0.a;
+		return $author$project$Thread$Procedure$Msg(
+			A2($author$project$Internal$setTarget, tid, event));
+	});
+var $author$project$Thread$Browser$globalSubscriptions = F3(
+	function (f, tid, memory) {
+		return A2(
+			$elm$core$Platform$Sub$map,
+			$author$project$Thread$Procedure$setTarget(tid),
+			f(memory));
+	});
+var $author$project$Thread$LocalMemory$LocalMemory = function (a) {
+	return {$: 'LocalMemory', a: a};
+};
+var $author$project$Thread$LocalMemory$init = $author$project$Thread$LocalMemory$LocalMemory(
+	{list: _List_Nil});
+var $author$project$Advanced$init = {cards: $author$project$Thread$LocalMemory$init};
+var $author$project$Internal$AddFinalizer = function (a) {
+	return {$: 'AddFinalizer', a: a};
+};
+var $author$project$Internal$addFinalizer = function (f) {
 	return $author$project$Internal$Procedure(
 		_List_fromArray(
 			[
-				$author$project$Internal$Fork(
+				$author$project$Internal$AddFinalizer(
+				function (tid) {
+					var _v0 = f(tid);
+					var ps = _v0.a;
+					return ps;
+				})
+			]));
+};
+var $author$project$Thread$Procedure$addFinalizer = function (f) {
+	return $author$project$Thread$Procedure$Procedure(
+		$author$project$Internal$addFinalizer(
+			function (tid) {
+				var _v0 = $author$project$Thread$Procedure$batch(
+					f(
+						$author$project$Thread$Procedure$ThreadId(tid)));
+				var proc = _v0.a;
+				return proc;
+			}));
+};
+var $author$project$Thread$LocalMemory$assign = F3(
+	function (tid, initial, _v0) {
+		var local = _v0.a;
+		return $author$project$Thread$LocalMemory$LocalMemory(
+			_Utils_update(
+				local,
+				{
+					list: A2(
+						$elm$core$List$cons,
+						_Utils_Tuple2(tid, initial),
+						local.list)
+				}));
+	});
+var $author$project$Internal$Async = function (a) {
+	return {$: 'Async', a: a};
+};
+var $author$project$Internal$async = function (f) {
+	return $author$project$Internal$Procedure(
+		_List_fromArray(
+			[
+				$author$project$Internal$Async(
 				function (a) {
 					return function (_v0) {
 						var ps = _v0.a;
@@ -5850,106 +6437,208 @@ var $author$project$Internal$fork = function (f) {
 				})
 			]));
 };
-var $author$project$Thread$Procedure$fork = function (f) {
+var $author$project$Thread$Procedure$async = function (f) {
 	return $author$project$Thread$Procedure$Procedure(
-		$author$project$Internal$fork(
-			function (a) {
+		$author$project$Internal$async(
+			function (tid) {
 				return function (_v0) {
 					var proc = _v0.a;
 					return proc;
 				}(
-					f(a));
+					$author$project$Thread$Procedure$batch(
+						f(
+							$author$project$Thread$Procedure$ThreadId(tid))));
 			}));
 };
-var $author$project$Advanced$GoatCardLocal = F2(
-	function (a, b) {
-		return {$: 'GoatCardLocal', a: a, b: b};
-	});
-var $elm$core$Basics$composeR = F3(
-	function (f, g, x) {
-		return g(
-			f(x));
-	});
+var $author$project$Internal$Await = function (a) {
+	return {$: 'Await', a: a};
+};
+var $author$project$Internal$Do = function (a) {
+	return {$: 'Do', a: a};
+};
 var $author$project$Internal$DoAndThen = function (a) {
 	return {$: 'DoAndThen', a: a};
 };
-var $author$project$Internal$Quit = {$: 'Quit'};
-var $author$project$Internal$SyncAll = function (a) {
-	return {$: 'SyncAll', a: a};
+var $author$project$Internal$Fork = function (a) {
+	return {$: 'Fork', a: a};
 };
-var $author$project$Internal$liftShared_ = F2(
+var $author$project$Internal$Quit = {$: 'Quit'};
+var $author$project$Internal$Race = function (a) {
+	return {$: 'Race', a: a};
+};
+var $author$project$Internal$Sync = function (a) {
+	return {$: 'Sync', a: a};
+};
+var $author$project$Internal$Turn = function (a) {
+	return {$: 'Turn', a: a};
+};
+var $elm$core$Maybe$map = F2(
+	function (f, maybe) {
+		if (maybe.$ === 'Just') {
+			var value = maybe.a;
+			return $elm$core$Maybe$Just(
+				f(value));
+		} else {
+			return $elm$core$Maybe$Nothing;
+		}
+	});
+var $author$project$Internal$liftMemory_ = F2(
 	function (lifter, pb) {
 		switch (pb.$) {
 			case 'DoAndThen':
 				var f = pb.a;
 				return $author$project$Internal$DoAndThen(
 					F2(
-						function (_v1, a) {
-							var _v2 = A2(
-								f,
-								_Utils_Tuple0,
-								lifter.get(a));
-							var b = _v2.a;
-							var cmds = _v2.b;
-							var ps = _v2.c;
-							return _Utils_Tuple3(
-								A2(lifter.set, b, a),
-								cmds,
-								A2(
-									$elm$core$List$map,
-									$author$project$Internal$liftShared_(lifter),
-									ps));
+						function (tid, a) {
+							var _v1 = lifter.get(a);
+							if (_v1.$ === 'Nothing') {
+								return _Utils_Tuple3(a, _List_Nil, _List_Nil);
+							} else {
+								var old = _v1.a;
+								var _v2 = A2(f, tid, old);
+								var b = _v2.a;
+								var cmds = _v2.b;
+								var ps = _v2.c;
+								return _Utils_Tuple3(
+									A2(lifter.set, b, a),
+									cmds,
+									A2(
+										$elm$core$List$map,
+										$author$project$Internal$liftMemory_(lifter),
+										ps));
+							}
 						}));
+			case 'Do':
+				var f = pb.a;
+				return $author$project$Internal$Do(
+					F2(
+						function (tid, a) {
+							var _v3 = lifter.get(a);
+							if (_v3.$ === 'Nothing') {
+								return _Utils_Tuple2(a, _List_Nil);
+							} else {
+								var old = _v3.a;
+								var _v4 = A2(f, tid, old);
+								var b = _v4.a;
+								var cmds = _v4.b;
+								return _Utils_Tuple2(
+									A2(lifter.set, b, a),
+									cmds);
+							}
+						}));
+			case 'AddFinalizer':
+				var f = pb.a;
+				return $author$project$Internal$AddFinalizer(
+					function (tid) {
+						return A2(
+							$elm$core$List$map,
+							$author$project$Internal$liftMemory_(lifter),
+							f(tid));
+					});
 			case 'Await':
 				var f = pb.a;
 				return $author$project$Internal$Await(
 					F3(
-						function (tid, msg, a) {
-							return A2(
-								$elm$core$Maybe$map,
-								$elm$core$List$map(
-									$author$project$Internal$liftShared_(lifter)),
-								A3(
-									f,
-									tid,
-									msg,
-									lifter.get(a)));
+						function (tids, msg, a) {
+							var _v5 = lifter.get(a);
+							if (_v5.$ === 'Nothing') {
+								return $elm$core$Maybe$Nothing;
+							} else {
+								var old = _v5.a;
+								return A2(
+									$elm$core$Maybe$map,
+									$elm$core$List$map(
+										$author$project$Internal$liftMemory_(lifter)),
+									A3(f, tids, msg, old));
+							}
 						}));
 			case 'Fork':
 				var f = pb.a;
 				return $author$project$Internal$Fork(
-					function (_v3) {
+					function (tid) {
 						return A2(
 							$elm$core$List$map,
-							$author$project$Internal$liftShared_(lifter),
-							f(_Utils_Tuple0));
+							$author$project$Internal$liftMemory_(lifter),
+							f(tid));
 					});
-			case 'SyncAll':
-				var pss = pb.a;
-				return $author$project$Internal$SyncAll(
+			case 'Async':
+				var f = pb.a;
+				return $author$project$Internal$Async(
+					function (tid) {
+						return A2(
+							$elm$core$List$map,
+							$author$project$Internal$liftMemory_(lifter),
+							f(tid));
+					});
+			case 'Sync':
+				var fs = pb.a;
+				return $author$project$Internal$Sync(
 					A2(
 						$elm$core$List$map,
-						$elm$core$List$map(
-							$author$project$Internal$liftShared_(lifter)),
-						pss));
+						F2(
+							function (f, tid) {
+								return A2(
+									$elm$core$List$map,
+									$author$project$Internal$liftMemory_(lifter),
+									f(tid));
+							}),
+						fs));
+			case 'Race':
+				var fs = pb.a;
+				return $author$project$Internal$Race(
+					A2(
+						$elm$core$List$map,
+						F2(
+							function (f, tid) {
+								return A2(
+									$elm$core$List$map,
+									$author$project$Internal$liftMemory_(lifter),
+									f(tid));
+							}),
+						fs));
+			case 'Turn':
+				var f = pb.a;
+				return $author$project$Internal$Turn(
+					function (x) {
+						return A2(
+							$elm$core$List$map,
+							$author$project$Internal$liftMemory_(lifter),
+							f(x));
+					});
 			default:
 				return $author$project$Internal$Quit;
 		}
 	});
-var $author$project$Internal$liftShared = F2(
+var $author$project$Internal$liftMemory = F2(
 	function (lifter, _v0) {
 		var ps = _v0.a;
 		return $author$project$Internal$Procedure(
 			A2(
 				$elm$core$List$map,
-				$author$project$Internal$liftShared_(lifter),
+				$author$project$Internal$liftMemory_(lifter),
 				ps));
 	});
-var $author$project$Thread$Procedure$liftShared = F2(
+var $author$project$Thread$Procedure$lift = F2(
 	function (lifter, _v0) {
 		var proc = _v0.a;
 		return $author$project$Thread$Procedure$Procedure(
-			A2($author$project$Internal$liftShared, lifter, proc));
+			A2($author$project$Internal$liftMemory, lifter, proc));
+	});
+var $author$project$Thread$Procedure$liftBlock = F3(
+	function (lifter, f, tid) {
+		return A2(
+			$elm$core$List$map,
+			$author$project$Thread$Procedure$lift(lifter),
+			f(tid));
+	});
+var $elm$core$Maybe$andThen = F2(
+	function (callback, maybeValue) {
+		if (maybeValue.$ === 'Just') {
+			var value = maybeValue.a;
+			return callback(value);
+		} else {
+			return $elm$core$Maybe$Nothing;
+		}
 	});
 var $elm$core$List$maybeCons = F3(
 	function (f, mx, xs) {
@@ -5978,9 +6667,9 @@ var $elm$core$List$head = function (list) {
 		return $elm$core$Maybe$Nothing;
 	}
 };
-var $author$project$Advanced$Resource$lookup = F2(
+var $author$project$Thread$LocalMemory$get = F2(
 	function (target, _v0) {
-		var resource = _v0.a;
+		var local = _v0.a;
 		return $elm$core$List$head(
 			A2(
 				$elm$core$List$filterMap,
@@ -5989,535 +6678,67 @@ var $author$project$Advanced$Resource$lookup = F2(
 					var a = _v1.b;
 					return _Utils_eq(id, target) ? $elm$core$Maybe$Just(a) : $elm$core$Maybe$Nothing;
 				},
-				resource.list));
+				local.list));
 	});
-var $author$project$Advanced$Resource$modify = F2(
-	function (f, _v0) {
-		var resource = _v0.a;
-		return $author$project$Advanced$Resource$Resource(
-			_Utils_update(
-				resource,
-				{
-					list: A2(
-						$elm$core$List$map,
-						function (_v1) {
-							var id = _v1.a;
-							var a = _v1.b;
-							return _Utils_Tuple2(
-								id,
-								A2(f, id, a));
-						},
-						resource.list)
-				}));
-	});
-var $elm$core$Maybe$withDefault = F2(
-	function (_default, maybe) {
-		if (maybe.$ === 'Just') {
-			var value = maybe.a;
-			return value;
-		} else {
-			return _default;
-		}
-	});
-var $elm$core$Maybe$andThen = F2(
-	function (callback, maybeValue) {
-		if (maybeValue.$ === 'Just') {
-			var value = maybeValue.a;
-			return callback(value);
-		} else {
-			return $elm$core$Maybe$Nothing;
-		}
-	});
-var $author$project$Internal$mapMaybeGlobal = F2(
-	function (f, msg) {
-		if (msg.$ === 'GlobalEvent') {
-			var a = msg.a;
-			return A2(
-				$elm$core$Maybe$map,
-				$author$project$Internal$GlobalEvent,
-				f(a));
-		} else {
-			var tid = msg.a;
-			var local = msg.b;
-			return $elm$core$Maybe$Just(
-				A2($author$project$Internal$ThreadEvent, tid, local));
-		}
-	});
-var $author$project$Internal$liftGlobal_ = F2(
-	function (mget, pb) {
-		switch (pb.$) {
-			case 'DoAndThen':
-				var f = pb.a;
-				return $author$project$Internal$DoAndThen(
-					F2(
-						function (_v1, shared) {
-							var _v2 = A2(f, _Utils_Tuple0, shared);
-							var shared2 = _v2.a;
-							var cmds = _v2.b;
-							var ps = _v2.c;
-							return _Utils_Tuple3(
-								shared2,
-								cmds,
-								A2(
-									$elm$core$List$map,
-									$author$project$Internal$liftGlobal_(mget),
-									ps));
-						}));
-			case 'Await':
-				var f = pb.a;
-				return $author$project$Internal$Await(
-					F3(
-						function (tid, msg, shared) {
-							return A2(
-								$elm$core$Maybe$andThen,
-								function (b) {
-									return A2(
-										$elm$core$Maybe$map,
-										$elm$core$List$map(
-											$author$project$Internal$liftGlobal_(mget)),
-										A3(f, tid, b, shared));
-								},
-								A2($author$project$Internal$mapMaybeGlobal, mget, msg));
-						}));
-			case 'Fork':
-				var f = pb.a;
-				return $author$project$Internal$Fork(
-					function (_v3) {
-						return A2(
-							$elm$core$List$map,
-							$author$project$Internal$liftGlobal_(mget),
-							f(_Utils_Tuple0));
-					});
-			case 'SyncAll':
-				var pss = pb.a;
-				return $author$project$Internal$SyncAll(
-					A2(
-						$elm$core$List$map,
-						$elm$core$List$map(
-							$author$project$Internal$liftGlobal_(mget)),
-						pss));
-			default:
-				return $author$project$Internal$Quit;
-		}
-	});
-var $author$project$Internal$liftGlobal = F2(
-	function (mget, _v0) {
-		var ps = _v0.a;
-		return $author$project$Internal$Procedure(
-			A2(
-				$elm$core$List$map,
-				$author$project$Internal$liftGlobal_(mget),
-				ps));
-	});
-var $author$project$Thread$Procedure$wrapGlobal = F2(
-	function (unwrap, _v0) {
-		var proc = _v0.a;
-		return $author$project$Thread$Procedure$Procedure(
-			A2($author$project$Internal$liftGlobal, unwrap, proc));
-	});
-var $author$project$Internal$mapMaybeLocal = F2(
-	function (f, msg) {
-		if (msg.$ === 'GlobalEvent') {
-			var global = msg.a;
-			return $elm$core$Maybe$Just(
-				$author$project$Internal$GlobalEvent(global));
-		} else {
-			var tid = msg.a;
-			var a = msg.b;
-			return A2(
-				$elm$core$Maybe$map,
-				$author$project$Internal$ThreadEvent(tid),
-				f(a));
-		}
-	});
-var $author$project$Internal$liftLocal_ = F2(
-	function (mget, pb) {
-		switch (pb.$) {
-			case 'DoAndThen':
-				var f = pb.a;
-				return $author$project$Internal$DoAndThen(
-					F2(
-						function (_v1, shared) {
-							var _v2 = A2(f, _Utils_Tuple0, shared);
-							var shared2 = _v2.a;
-							var cmds = _v2.b;
-							var ps = _v2.c;
-							return _Utils_Tuple3(
-								shared2,
-								cmds,
-								A2(
-									$elm$core$List$map,
-									$author$project$Internal$liftLocal_(mget),
-									ps));
-						}));
-			case 'Await':
-				var f = pb.a;
-				return $author$project$Internal$Await(
-					F3(
-						function (tid, msg, shared) {
-							return A2(
-								$elm$core$Maybe$andThen,
-								function (b) {
-									return A2(
-										$elm$core$Maybe$map,
-										$elm$core$List$map(
-											$author$project$Internal$liftLocal_(mget)),
-										A3(f, tid, b, shared));
-								},
-								A2($author$project$Internal$mapMaybeLocal, mget, msg));
-						}));
-			case 'Fork':
-				var f = pb.a;
-				return $author$project$Internal$Fork(
-					function (_v3) {
-						return A2(
-							$elm$core$List$map,
-							$author$project$Internal$liftLocal_(mget),
-							f(_Utils_Tuple0));
-					});
-			case 'SyncAll':
-				var pss = pb.a;
-				return $author$project$Internal$SyncAll(
-					A2(
-						$elm$core$List$map,
-						$elm$core$List$map(
-							$author$project$Internal$liftLocal_(mget)),
-						pss));
-			default:
-				return $author$project$Internal$Quit;
-		}
-	});
-var $author$project$Internal$liftLocal = F2(
-	function (mget, _v0) {
-		var ps = _v0.a;
-		return $author$project$Internal$Procedure(
-			A2(
-				$elm$core$List$map,
-				$author$project$Internal$liftLocal_(mget),
-				ps));
-	});
-var $author$project$Internal$mapLocalCmd_ = F2(
-	function (set, pb) {
-		switch (pb.$) {
-			case 'DoAndThen':
-				var f = pb.a;
-				return $author$project$Internal$DoAndThen(
-					F2(
-						function (_v1, shared) {
-							var _v2 = A2(f, _Utils_Tuple0, shared);
-							var shared2 = _v2.a;
-							var cmds = _v2.b;
-							var ps = _v2.c;
-							return _Utils_Tuple3(
-								shared2,
-								A2($elm$core$List$map, set, cmds),
-								A2(
-									$elm$core$List$map,
-									$author$project$Internal$mapLocalCmd_(set),
-									ps));
-						}));
-			case 'Await':
-				var f = pb.a;
-				return $author$project$Internal$Await(
-					F3(
-						function (tid, msg, shared) {
-							return A2(
-								$elm$core$Maybe$map,
-								$elm$core$List$map(
-									$author$project$Internal$mapLocalCmd_(set)),
-								A3(f, tid, msg, shared));
-						}));
-			case 'Fork':
-				var f = pb.a;
-				return $author$project$Internal$Fork(
-					function (_v3) {
-						return A2(
-							$elm$core$List$map,
-							$author$project$Internal$mapLocalCmd_(set),
-							f(_Utils_Tuple0));
-					});
-			case 'SyncAll':
-				var pss = pb.a;
-				return $author$project$Internal$SyncAll(
-					A2(
-						$elm$core$List$map,
-						$elm$core$List$map(
-							$author$project$Internal$mapLocalCmd_(set)),
-						pss));
-			default:
-				return $author$project$Internal$Quit;
-		}
-	});
-var $author$project$Internal$mapLocalCmd = F2(
-	function (set, _v0) {
-		var ps = _v0.a;
-		return $author$project$Internal$Procedure(
-			A2(
-				$elm$core$List$map,
-				$author$project$Internal$mapLocalCmd_(set),
-				ps));
-	});
-var $author$project$Thread$Procedure$wrapLocal = F2(
-	function (wrapper, _v0) {
-		var proc = _v0.a;
-		return $author$project$Thread$Procedure$Procedure(
-			A2(
-				$author$project$Internal$mapLocalCmd,
-				$elm$core$Platform$Cmd$map(wrapper.wrap),
-				A2($author$project$Internal$liftLocal, wrapper.unwrap, proc)));
-	});
-var $author$project$Advanced$fromGoatCardProcedure = function (target) {
-	return A2(
-		$elm$core$Basics$composeR,
-		$author$project$Thread$Procedure$liftShared(
-			{
-				get: function (shared) {
-					return A2(
-						$elm$core$Maybe$withDefault,
-						$author$project$Advanced$GoatCard$init,
-						A2($author$project$Advanced$Resource$lookup, target, shared.cards));
-				},
-				set: F2(
-					function (_new, shared) {
-						return _Utils_update(
-							shared,
-							{
-								cards: A2(
-									$author$project$Advanced$Resource$modify,
-									F2(
-										function (id, a) {
-											return _Utils_eq(id, target) ? _new : a;
-										}),
-									shared.cards)
-							});
-					})
-			}),
-		A2(
-			$elm$core$Basics$composeR,
-			$author$project$Thread$Procedure$wrapLocal(
-				{
-					unwrap: function (local) {
-						var id = local.a;
-						var event = local.b;
-						return _Utils_eq(id, target) ? $elm$core$Maybe$Just(event) : $elm$core$Maybe$Nothing;
-					},
-					wrap: $author$project$Advanced$GoatCardLocal(target)
-				}),
-			$author$project$Thread$Procedure$wrapGlobal(
-				function (global) {
-					if (global.$ === 'GoatCardGlobal') {
-						var id = global.a;
-						var event = global.b;
-						return _Utils_eq(id, target) ? $elm$core$Maybe$Just(event) : $elm$core$Maybe$Nothing;
+var $author$project$Thread$LocalMemory$localLifter = F2(
+	function (target, lifter) {
+		return {
+			get: function (memory) {
+				return A2(
+					$elm$core$Maybe$andThen,
+					$author$project$Thread$LocalMemory$get(target),
+					lifter.get(memory));
+			},
+			set: F2(
+				function (_new, memory) {
+					var _v0 = lifter.get(memory);
+					if (_v0.$ === 'Nothing') {
+						return memory;
 					} else {
-						return $elm$core$Maybe$Nothing;
+						var local = _v0.a.a;
+						return A2(
+							lifter.set,
+							$author$project$Thread$LocalMemory$LocalMemory(
+								_Utils_update(
+									local,
+									{
+										list: A2(
+											$elm$core$List$map,
+											function (_v1) {
+												var id = _v1.a;
+												var old = _v1.b;
+												return _Utils_Tuple2(
+													id,
+													_Utils_eq(id, target) ? _new : old);
+											},
+											local.list)
+									})),
+							memory);
 					}
-				})));
-};
-var $author$project$Internal$lazy = function (f) {
-	return $author$project$Internal$Procedure(
-		_List_fromArray(
-			[
-				$author$project$Internal$DoAndThen(
-				F2(
-					function (_v0, shared) {
-						return _Utils_Tuple3(
-							shared,
-							_List_Nil,
-							function (_v1) {
-								var ps = _v1.a;
-								return ps;
-							}(
-								f(_Utils_Tuple0)));
-					}))
-			]));
-};
-var $author$project$Thread$Procedure$lazy = function (f) {
-	return $author$project$Thread$Procedure$Procedure(
-		$author$project$Internal$lazy(
-			function (_v0) {
-				return function (_v1) {
-					var proc = _v1.a;
-					return proc;
-				}(
-					f(_Utils_Tuple0));
-			}));
-};
+				})
+		};
+	});
 var $author$project$Internal$modify = function (f) {
 	return $author$project$Internal$Procedure(
 		_List_fromArray(
 			[
-				$author$project$Internal$DoAndThen(
+				$author$project$Internal$Do(
 				F2(
-					function (_v0, shared) {
-						return _Utils_Tuple3(
-							f(shared),
-							_List_Nil,
+					function (tid, memory) {
+						return _Utils_Tuple2(
+							A2(f, tid, memory),
 							_List_Nil);
 					}))
 			]));
 };
 var $author$project$Thread$Procedure$modify = function (f) {
 	return $author$project$Thread$Procedure$Procedure(
-		$author$project$Internal$modify(f));
+		$author$project$Internal$modify(
+			F2(
+				function (_v0, memory) {
+					return f(memory);
+				})));
 };
-var $author$project$Internal$modifyAndThen = F2(
-	function (f, g) {
-		return $author$project$Internal$Procedure(
-			_List_fromArray(
-				[
-					$author$project$Internal$DoAndThen(
-					F2(
-						function (_v0, shared) {
-							var _v1 = f(shared);
-							var shared2 = _v1.a;
-							var x = _v1.b;
-							var _v2 = g(x);
-							var ps = _v2.a;
-							return _Utils_Tuple3(shared2, _List_Nil, ps);
-						}))
-				]));
-	});
-var $author$project$Thread$Procedure$modifyAndThen = F2(
-	function (f, g) {
-		return $author$project$Thread$Procedure$Procedure(
-			A2(
-				$author$project$Internal$modifyAndThen,
-				f,
-				function (x) {
-					return function (_v0) {
-						var proc = _v0.a;
-						return proc;
-					}(
-						g(x));
-				}));
-	});
-var $author$project$Internal$quit = $author$project$Internal$Procedure(
-	_List_fromArray(
-		[$author$project$Internal$Quit]));
-var $author$project$Thread$Procedure$quit = $author$project$Thread$Procedure$Procedure($author$project$Internal$quit);
-function $author$project$Advanced$GoatCard$cyclic$editModeProcedure() {
-	return $author$project$Thread$Procedure$batch(
-		_List_fromArray(
-			[
-				$author$project$Thread$Procedure$awaitGlobal(
-				F2(
-					function (global, _v3) {
-						switch (global.$) {
-							case 'ClickSave':
-								return $elm$core$Maybe$Just(
-									$author$project$Thread$Procedure$batch(
-										_List_fromArray(
-											[
-												$author$project$Thread$Procedure$modify(
-												function (_v5) {
-													var shared = _v5.a;
-													return $author$project$Advanced$GoatCard$Shared(
-														_Utils_update(
-															shared,
-															{
-																form: {name: ''},
-																onEditing: false,
-																saved: {name: shared.form.name}
-															}));
-												}),
-												$author$project$Advanced$GoatCard$cyclic$savedModeProcedure()
-											])));
-							case 'ClickCancel':
-								return $elm$core$Maybe$Just(
-									$author$project$Thread$Procedure$batch(
-										_List_fromArray(
-											[
-												$author$project$Thread$Procedure$modify(
-												function (_v6) {
-													var shared = _v6.a;
-													return $author$project$Advanced$GoatCard$Shared(
-														_Utils_update(
-															shared,
-															{
-																form: {name: ''},
-																onEditing: false
-															}));
-												}),
-												$author$project$Advanced$GoatCard$cyclic$savedModeProcedure()
-											])));
-							case 'ChangeName':
-								var str = global.a;
-								return $elm$core$Maybe$Just(
-									$author$project$Thread$Procedure$batch(
-										_List_fromArray(
-											[
-												$author$project$Thread$Procedure$modify(
-												function (_v7) {
-													var shared = _v7.a;
-													return $author$project$Advanced$GoatCard$Shared(
-														_Utils_update(
-															shared,
-															{
-																form: function (form) {
-																	return _Utils_update(
-																		form,
-																		{name: str});
-																}(shared.form)
-															}));
-												}),
-												$author$project$Thread$Procedure$lazy(
-												function (_v8) {
-													return $author$project$Advanced$GoatCard$cyclic$editModeProcedure();
-												})
-											])));
-							default:
-								return $elm$core$Maybe$Nothing;
-						}
-					}))
-			]));
-}
-function $author$project$Advanced$GoatCard$cyclic$savedModeProcedure() {
-	return $author$project$Thread$Procedure$batch(
-		_List_fromArray(
-			[
-				$author$project$Thread$Procedure$awaitGlobal(
-				F2(
-					function (global, _v0) {
-						switch (global.$) {
-							case 'ClickEdit':
-								return $elm$core$Maybe$Just(
-									$author$project$Thread$Procedure$batch(
-										_List_fromArray(
-											[
-												$author$project$Thread$Procedure$modify(
-												function (_v2) {
-													var shared = _v2.a;
-													return $author$project$Advanced$GoatCard$Shared(
-														_Utils_update(
-															shared,
-															{
-																form: {name: shared.saved.name},
-																onEditing: true
-															}));
-												}),
-												$author$project$Advanced$GoatCard$cyclic$editModeProcedure()
-											])));
-							case 'ClickRemove':
-								return $elm$core$Maybe$Just($author$project$Thread$Procedure$quit);
-							default:
-								return $elm$core$Maybe$Nothing;
-						}
-					}))
-			]));
-}
-try {
-	var $author$project$Advanced$GoatCard$editModeProcedure = $author$project$Advanced$GoatCard$cyclic$editModeProcedure();
-	$author$project$Advanced$GoatCard$cyclic$editModeProcedure = function () {
-		return $author$project$Advanced$GoatCard$editModeProcedure;
-	};
-	var $author$project$Advanced$GoatCard$savedModeProcedure = $author$project$Advanced$GoatCard$cyclic$savedModeProcedure();
-	$author$project$Advanced$GoatCard$cyclic$savedModeProcedure = function () {
-		return $author$project$Advanced$GoatCard$savedModeProcedure;
-	};
-} catch ($) {
-	throw 'Some top-level definitions from `Advanced.GoatCard` are causing infinite recursion:\n\n  ┌─────┐\n  │    editModeProcedure\n  │     ↓\n  │    savedModeProcedure\n  └─────┘\n\nThese errors are very tricky, so read https://elm-lang.org/0.19.1/bad-recursion to learn how to fix it!';}
-var $author$project$Advanced$GoatCard$procedure = $author$project$Advanced$GoatCard$editModeProcedure;
 var $elm$core$List$filter = F2(
 	function (isGood, list) {
 		return A3(
@@ -6530,82 +6751,693 @@ var $elm$core$List$filter = F2(
 			list);
 	});
 var $elm$core$Basics$neq = _Utils_notEqual;
-var $author$project$Advanced$Resource$remove = F2(
+var $author$project$Thread$LocalMemory$remove = F2(
 	function (target, _v0) {
-		var resource = _v0.a;
-		return $author$project$Advanced$Resource$Resource(
+		var local = _v0.a;
+		return $author$project$Thread$LocalMemory$LocalMemory(
 			_Utils_update(
-				resource,
+				local,
 				{
 					list: A2(
 						$elm$core$List$filter,
 						function (_v1) {
-							var id = _v1.a;
-							return !_Utils_eq(id, target);
+							var tid = _v1.a;
+							return !_Utils_eq(tid, target);
 						},
-						resource.list)
+						local.list)
 				}));
 	});
-var $author$project$Advanced$procedure = function (_v0) {
-	return $author$project$Thread$Procedure$batch(
+var $author$project$Thread$LocalMemory$async = F3(
+	function (lifter, def, f) {
+		return $author$project$Thread$Procedure$async(
+			function (tid) {
+				return _List_fromArray(
+					[
+						$author$project$Thread$Procedure$modify(
+						function (memory) {
+							var _v0 = lifter.get(memory);
+							if (_v0.$ === 'Just') {
+								var old = _v0.a;
+								return A2(
+									lifter.set,
+									A3($author$project$Thread$LocalMemory$assign, tid, def, old),
+									memory);
+							} else {
+								return memory;
+							}
+						}),
+						$author$project$Thread$Procedure$addFinalizer(
+						function (_v1) {
+							return _List_fromArray(
+								[
+									$author$project$Thread$Procedure$modify(
+									function (memory) {
+										var _v2 = lifter.get(memory);
+										if (_v2.$ === 'Just') {
+											var old = _v2.a;
+											return A2(
+												lifter.set,
+												A2($author$project$Thread$LocalMemory$remove, tid, old),
+												memory);
+										} else {
+											return memory;
+										}
+									})
+								]);
+						}),
+						$author$project$Thread$Procedure$batch(
+						A2(
+							f,
+							$author$project$Thread$Procedure$liftBlock(
+								A2($author$project$Thread$LocalMemory$localLifter, tid, lifter)),
+							tid))
+					]);
+			});
+	});
+var $author$project$Thread$LocalMemory$asyncChild = F3(
+	function (lifter, def, f) {
+		return A3(
+			$author$project$Thread$LocalMemory$async,
+			lifter,
+			def,
+			function (lift) {
+				return lift(f);
+			});
+	});
+var $elm$core$List$any = F2(
+	function (isOkay, list) {
+		any:
+		while (true) {
+			if (!list.b) {
+				return false;
+			} else {
+				var x = list.a;
+				var xs = list.b;
+				if (isOkay(x)) {
+					return true;
+				} else {
+					var $temp$isOkay = isOkay,
+						$temp$list = xs;
+					isOkay = $temp$isOkay;
+					list = $temp$list;
+					continue any;
+				}
+			}
+		}
+	});
+var $elm$core$List$member = F2(
+	function (x, xs) {
+		return A2(
+			$elm$core$List$any,
+			function (a) {
+				return _Utils_eq(a, x);
+			},
+			xs);
+	});
+var $author$project$Internal$await = function (f) {
+	return $author$project$Internal$Procedure(
 		_List_fromArray(
 			[
-				$author$project$Thread$Procedure$awaitGlobal(
-				F2(
-					function (global, _v1) {
-						if (global.$ === 'ClickAddGoatCard') {
-							return $elm$core$Maybe$Just(
-								$author$project$Thread$Procedure$batch(
-									_List_fromArray(
-										[
-											A2(
-											$author$project$Thread$Procedure$modifyAndThen,
-											$author$project$Advanced$addGoatCardAnd,
-											function (rid) {
-												return $author$project$Thread$Procedure$batch(
-													_List_fromArray(
-														[
-															$author$project$Thread$Procedure$fork(
-															function (_v3) {
-																return $author$project$Thread$Procedure$batch(
-																	_List_fromArray(
-																		[
-																			A2($author$project$Advanced$fromGoatCardProcedure, rid, $author$project$Advanced$GoatCard$procedure),
-																			$author$project$Thread$Procedure$modify(
-																			function (shared) {
-																				return _Utils_update(
-																					shared,
-																					{
-																						cards: A2($author$project$Advanced$Resource$remove, rid, shared.cards)
-																					});
-																			})
-																		]));
-															})
-														]));
-											})
-										])));
-						} else {
-							return $elm$core$Maybe$Nothing;
-						}
-					})),
-				$author$project$Thread$Procedure$lazy(
-				function (_v4) {
-					return $author$project$Advanced$procedure(_Utils_Tuple0);
+				$author$project$Internal$Await(
+				F3(
+					function (tids, msg, memory) {
+						var tid = msg.a;
+						var event = msg.b;
+						return A2($elm$core$List$member, tid, tids) ? A2(
+							$elm$core$Maybe$map,
+							function (_v1) {
+								var ps = _v1.a;
+								return ps;
+							},
+							A2(f, event, memory)) : $elm$core$Maybe$Nothing;
+					}))
+			]));
+};
+var $author$project$Thread$Procedure$await = function (f) {
+	return $author$project$Thread$Procedure$Procedure(
+		$author$project$Internal$await(
+			F2(
+				function (local, memory) {
+					var _v0 = A2(f, local, memory);
+					if (!_v0.b) {
+						return $elm$core$Maybe$Nothing;
+					} else {
+						var ps = _v0;
+						return $elm$core$Maybe$Just(
+							$author$project$Internal$batch(
+								A2(
+									$elm$core$List$map,
+									function (_v1) {
+										var proc = _v1.a;
+										return proc;
+									},
+									ps)));
+					}
+				})));
+};
+var $author$project$Advanced$GoatCardEvent = function (a) {
+	return {$: 'GoatCardEvent', a: a};
+};
+var $author$project$Advanced$goatCardWrapper = {
+	unwrap: function (event) {
+		if (event.$ === 'GoatCardEvent') {
+			var card = event.a;
+			return $elm$core$Maybe$Just(card);
+		} else {
+			return $elm$core$Maybe$Nothing;
+		}
+	},
+	wrap: $author$project$Advanced$GoatCardEvent
+};
+var $author$project$Advanced$GoatCard$Memory = function (a) {
+	return {$: 'Memory', a: a};
+};
+var $author$project$Advanced$GoatCard$init = $author$project$Advanced$GoatCard$Memory(
+	{
+		form: {name: ''},
+		onEditing: true,
+		saved: {name: ''}
+	});
+var $author$project$Internal$jump = function (f) {
+	return $author$project$Internal$Procedure(
+		_List_fromArray(
+			[
+				$author$project$Internal$Turn(
+				function (x) {
+					var _v0 = f(x);
+					var ps = _v0.a;
+					return ps;
 				})
 			]));
 };
+var $author$project$Thread$Procedure$jump = function (f) {
+	return $author$project$Thread$Procedure$Procedure(
+		$author$project$Internal$jump(
+			function (tid) {
+				return function (_v0) {
+					var proc = _v0.a;
+					return proc;
+				}(
+					$author$project$Thread$Procedure$batch(
+						f(
+							$author$project$Thread$Procedure$ThreadId(tid))));
+			}));
+};
+var $author$project$Advanced$GoatCard$modifyForm = function (f) {
+	return $author$project$Thread$Procedure$modify(
+		function (_v0) {
+			var memory = _v0.a;
+			return $author$project$Advanced$GoatCard$Memory(
+				_Utils_update(
+					memory,
+					{
+						form: f(memory.form)
+					}));
+		});
+};
+var $author$project$Internal$quit = $author$project$Internal$Procedure(
+	_List_fromArray(
+		[$author$project$Internal$Quit]));
+var $author$project$Thread$Procedure$quit = $author$project$Thread$Procedure$Procedure($author$project$Internal$quit);
+var $author$project$Internal$modifyAndThen = F2(
+	function (f, g) {
+		return $author$project$Internal$Procedure(
+			_List_fromArray(
+				[
+					$author$project$Internal$DoAndThen(
+					F2(
+						function (tid, memory) {
+							var _v0 = A2(f, tid, memory);
+							var memory2 = _v0.a;
+							var x = _v0.b;
+							var _v1 = A2(g, tid, x);
+							var ps = _v1.a;
+							return _Utils_Tuple3(memory2, _List_Nil, ps);
+						}))
+				]));
+	});
+var $author$project$Thread$Procedure$modifyAndThen = F2(
+	function (f, g) {
+		return $author$project$Thread$Procedure$Procedure(
+			A2(
+				$author$project$Internal$modifyAndThen,
+				F2(
+					function (_v0, memory) {
+						return f(memory);
+					}),
+				F2(
+					function (tid, x) {
+						return function (_v1) {
+							var proc = _v1.a;
+							return proc;
+						}(
+							$author$project$Thread$Procedure$batch(
+								A2(
+									g,
+									x,
+									$author$project$Thread$Procedure$ThreadId(tid))));
+					})));
+	});
+var $author$project$Thread$Procedure$withMemory = $author$project$Thread$Procedure$modifyAndThen(
+	function (memory) {
+		return _Utils_Tuple2(memory, memory);
+	});
+var $author$project$Thread$Procedure$when = F2(
+	function (f, ls) {
+		return $author$project$Thread$Procedure$withMemory(
+			function (memory) {
+				return f(memory) ? function (_v0) {
+					return ls;
+				} : function (_v1) {
+					return _List_Nil;
+				};
+			});
+	});
+var $author$project$Advanced$GoatCard$editModeProcedures = F2(
+	function (opt, _v4) {
+		return _List_fromArray(
+			[
+				$author$project$Thread$Procedure$await(
+				F2(
+					function (event, _v5) {
+						switch (event.$) {
+							case 'ClickSave':
+								return _List_fromArray(
+									[
+										$author$project$Thread$Procedure$modify(
+										function (_v7) {
+											var memory = _v7.a;
+											return $author$project$Advanced$GoatCard$Memory(
+												_Utils_update(
+													memory,
+													{
+														form: {name: ''},
+														onEditing: false,
+														saved: {name: memory.form.name}
+													}));
+										}),
+										$author$project$Thread$Procedure$jump($author$project$Advanced$GoatCard$savedModeProcedures)
+									]);
+							case 'ClickCancel':
+								return _List_fromArray(
+									[
+										A2(
+										$author$project$Thread$Procedure$when,
+										function (_v8) {
+											return opt.isInitial;
+										},
+										_List_fromArray(
+											[$author$project$Thread$Procedure$quit])),
+										$author$project$Thread$Procedure$modify(
+										function (_v9) {
+											var memory = _v9.a;
+											return $author$project$Advanced$GoatCard$Memory(
+												_Utils_update(
+													memory,
+													{
+														form: {name: ''},
+														onEditing: false
+													}));
+										}),
+										$author$project$Thread$Procedure$jump($author$project$Advanced$GoatCard$savedModeProcedures)
+									]);
+							case 'ChangeName':
+								var str = event.a;
+								return _List_fromArray(
+									[
+										$author$project$Advanced$GoatCard$modifyForm(
+										function (form) {
+											return _Utils_update(
+												form,
+												{name: str});
+										}),
+										$author$project$Thread$Procedure$jump(
+										$author$project$Advanced$GoatCard$editModeProcedures(opt))
+									]);
+							default:
+								return _List_Nil;
+						}
+					}))
+			]);
+	});
+var $author$project$Advanced$GoatCard$savedModeProcedures = function (_v0) {
+	return _List_fromArray(
+		[
+			$author$project$Thread$Procedure$await(
+			F2(
+				function (event, _v1) {
+					switch (event.$) {
+						case 'ClickEdit':
+							return _List_fromArray(
+								[
+									$author$project$Thread$Procedure$modify(
+									function (_v3) {
+										var memory = _v3.a;
+										return $author$project$Advanced$GoatCard$Memory(
+											_Utils_update(
+												memory,
+												{
+													form: {name: memory.saved.name},
+													onEditing: true
+												}));
+									}),
+									$author$project$Thread$Procedure$jump(
+									$author$project$Advanced$GoatCard$editModeProcedures(
+										{isInitial: false}))
+								]);
+						case 'ClickRemove':
+							return _List_fromArray(
+								[$author$project$Thread$Procedure$quit]);
+						default:
+							return _List_Nil;
+					}
+				}))
+		]);
+};
+var $author$project$Advanced$GoatCard$procedures = $author$project$Advanced$GoatCard$editModeProcedures(
+	{isInitial: true});
+var $author$project$Internal$mapMaybeEvent = F2(
+	function (f, msg) {
+		var tid = msg.a;
+		var a = msg.b;
+		return A2(
+			$elm$core$Maybe$map,
+			$author$project$Internal$ThreadEvent(tid),
+			f(a));
+	});
+var $author$project$Internal$liftEvent_ = F2(
+	function (mget, pb) {
+		switch (pb.$) {
+			case 'DoAndThen':
+				var f = pb.a;
+				return $author$project$Internal$DoAndThen(
+					F2(
+						function (tid, memory) {
+							var _v1 = A2(f, tid, memory);
+							var memory2 = _v1.a;
+							var cmds = _v1.b;
+							var ps = _v1.c;
+							return _Utils_Tuple3(
+								memory2,
+								cmds,
+								A2(
+									$elm$core$List$map,
+									$author$project$Internal$liftEvent_(mget),
+									ps));
+						}));
+			case 'Do':
+				var f = pb.a;
+				return $author$project$Internal$Do(f);
+			case 'AddFinalizer':
+				var f = pb.a;
+				return $author$project$Internal$AddFinalizer(
+					function (tid) {
+						return A2(
+							$elm$core$List$map,
+							$author$project$Internal$liftEvent_(mget),
+							f(tid));
+					});
+			case 'Await':
+				var f = pb.a;
+				return $author$project$Internal$Await(
+					F3(
+						function (tids, msg, memory) {
+							return A2(
+								$elm$core$Maybe$andThen,
+								function (b) {
+									return A2(
+										$elm$core$Maybe$map,
+										$elm$core$List$map(
+											$author$project$Internal$liftEvent_(mget)),
+										A3(f, tids, b, memory));
+								},
+								A2($author$project$Internal$mapMaybeEvent, mget, msg));
+						}));
+			case 'Fork':
+				var f = pb.a;
+				return $author$project$Internal$Fork(
+					function (tid) {
+						return A2(
+							$elm$core$List$map,
+							$author$project$Internal$liftEvent_(mget),
+							f(tid));
+					});
+			case 'Async':
+				var f = pb.a;
+				return $author$project$Internal$Async(
+					function (tid) {
+						return A2(
+							$elm$core$List$map,
+							$author$project$Internal$liftEvent_(mget),
+							f(tid));
+					});
+			case 'Sync':
+				var fs = pb.a;
+				return $author$project$Internal$Sync(
+					A2(
+						$elm$core$List$map,
+						F2(
+							function (f, tid) {
+								return A2(
+									$elm$core$List$map,
+									$author$project$Internal$liftEvent_(mget),
+									f(tid));
+							}),
+						fs));
+			case 'Race':
+				var fs = pb.a;
+				return $author$project$Internal$Race(
+					A2(
+						$elm$core$List$map,
+						F2(
+							function (f, tid) {
+								return A2(
+									$elm$core$List$map,
+									$author$project$Internal$liftEvent_(mget),
+									f(tid));
+							}),
+						fs));
+			case 'Turn':
+				var f = pb.a;
+				return $author$project$Internal$Turn(
+					function (x) {
+						return A2(
+							$elm$core$List$map,
+							$author$project$Internal$liftEvent_(mget),
+							f(x));
+					});
+			default:
+				return $author$project$Internal$Quit;
+		}
+	});
+var $author$project$Internal$liftEvent = F2(
+	function (mget, _v0) {
+		var ps = _v0.a;
+		return $author$project$Internal$Procedure(
+			A2(
+				$elm$core$List$map,
+				$author$project$Internal$liftEvent_(mget),
+				ps));
+	});
+var $author$project$Internal$mapCmd_ = F2(
+	function (set, pb) {
+		switch (pb.$) {
+			case 'DoAndThen':
+				var f = pb.a;
+				return $author$project$Internal$DoAndThen(
+					F2(
+						function (tid, memory) {
+							var _v1 = A2(f, tid, memory);
+							var memory2 = _v1.a;
+							var cmds = _v1.b;
+							var ps = _v1.c;
+							return _Utils_Tuple3(
+								memory2,
+								A2($elm$core$List$map, set, cmds),
+								A2(
+									$elm$core$List$map,
+									$author$project$Internal$mapCmd_(set),
+									ps));
+						}));
+			case 'Do':
+				var f = pb.a;
+				return $author$project$Internal$Do(
+					F2(
+						function (tid, memory) {
+							var _v2 = A2(f, tid, memory);
+							var memory2 = _v2.a;
+							var cmds = _v2.b;
+							return _Utils_Tuple2(
+								memory2,
+								A2($elm$core$List$map, set, cmds));
+						}));
+			case 'AddFinalizer':
+				var f = pb.a;
+				return $author$project$Internal$AddFinalizer(
+					function (tid) {
+						return A2(
+							$elm$core$List$map,
+							$author$project$Internal$mapCmd_(set),
+							f(tid));
+					});
+			case 'Await':
+				var f = pb.a;
+				return $author$project$Internal$Await(
+					F3(
+						function (tids, msg, memory) {
+							return A2(
+								$elm$core$Maybe$map,
+								$elm$core$List$map(
+									$author$project$Internal$mapCmd_(set)),
+								A3(f, tids, msg, memory));
+						}));
+			case 'Fork':
+				var f = pb.a;
+				return $author$project$Internal$Fork(
+					function (tid) {
+						return A2(
+							$elm$core$List$map,
+							$author$project$Internal$mapCmd_(set),
+							f(tid));
+					});
+			case 'Async':
+				var f = pb.a;
+				return $author$project$Internal$Async(
+					function (tid) {
+						return A2(
+							$elm$core$List$map,
+							$author$project$Internal$mapCmd_(set),
+							f(tid));
+					});
+			case 'Sync':
+				var fs = pb.a;
+				return $author$project$Internal$Sync(
+					A2(
+						$elm$core$List$map,
+						F2(
+							function (f, tid) {
+								return A2(
+									$elm$core$List$map,
+									$author$project$Internal$mapCmd_(set),
+									f(tid));
+							}),
+						fs));
+			case 'Race':
+				var fs = pb.a;
+				return $author$project$Internal$Race(
+					A2(
+						$elm$core$List$map,
+						F2(
+							function (f, tid) {
+								return A2(
+									$elm$core$List$map,
+									$author$project$Internal$mapCmd_(set),
+									f(tid));
+							}),
+						fs));
+			case 'Turn':
+				var f = pb.a;
+				return $author$project$Internal$Turn(
+					function (x) {
+						return A2(
+							$elm$core$List$map,
+							$author$project$Internal$mapCmd_(set),
+							f(x));
+					});
+			default:
+				return $author$project$Internal$Quit;
+		}
+	});
+var $author$project$Internal$mapCmd = F2(
+	function (set, _v0) {
+		var ps = _v0.a;
+		return $author$project$Internal$Procedure(
+			A2(
+				$elm$core$List$map,
+				$author$project$Internal$mapCmd_(set),
+				ps));
+	});
+var $author$project$Internal$mapMsg = F2(
+	function (f, _v0) {
+		var tid = _v0.a;
+		var a = _v0.b;
+		return A2(
+			$author$project$Internal$ThreadEvent,
+			tid,
+			f(a));
+	});
+var $author$project$Thread$Procedure$wrap = F2(
+	function (wrapper, _v0) {
+		var proc = _v0.a;
+		return $author$project$Thread$Procedure$Procedure(
+			A2(
+				$author$project$Internal$liftEvent,
+				wrapper.unwrap,
+				A2(
+					$author$project$Internal$mapCmd,
+					$elm$core$Platform$Cmd$map(
+						$author$project$Internal$mapMsg(wrapper.wrap)),
+					proc)));
+	});
+var $author$project$Thread$Procedure$wrapBlock = F3(
+	function (wrapper, f, tid) {
+		return A2(
+			$elm$core$List$map,
+			$author$project$Thread$Procedure$wrap(wrapper),
+			f(tid));
+	});
+var $author$project$Advanced$procedures = F2(
+	function (_v0, _v1) {
+		return _List_fromArray(
+			[
+				$author$project$Thread$Procedure$await(
+				F2(
+					function (event, _v2) {
+						if (event.$ === 'ClickAddGoatCard') {
+							return _List_fromArray(
+								[
+									A3(
+									$author$project$Thread$LocalMemory$asyncChild,
+									{
+										get: A2(
+											$elm$core$Basics$composeR,
+											function ($) {
+												return $.cards;
+											},
+											$elm$core$Maybe$Just),
+										set: F2(
+											function (cards, shared) {
+												return _Utils_update(
+													shared,
+													{cards: cards});
+											})
+									},
+									$author$project$Advanced$GoatCard$init,
+									A2($author$project$Thread$Procedure$wrapBlock, $author$project$Advanced$goatCardWrapper, $author$project$Advanced$GoatCard$procedures))
+								]);
+						} else {
+							return _List_Nil;
+						}
+					})),
+				$author$project$Thread$Procedure$jump(
+				$author$project$Advanced$procedures(_Utils_Tuple0))
+			]);
+	});
 var $elm$core$Platform$Sub$batch = _Platform_batch;
 var $elm$core$Platform$Sub$none = $elm$core$Platform$Sub$batch(_List_Nil);
 var $author$project$Advanced$subscriptions = function (_v0) {
 	return $elm$core$Platform$Sub$none;
 };
 var $author$project$Advanced$ClickAddGoatCard = {$: 'ClickAddGoatCard'};
-var $author$project$Advanced$GoatCardGlobal = F2(
-	function (a, b) {
-		return {$: 'GoatCardGlobal', a: a, b: b};
-	});
 var $elm$html$Html$button = _VirtualDom_node('button');
+var $elm$core$Basics$composeL = F3(
+	function (g, f, x) {
+		return g(
+			f(x));
+	});
 var $elm$html$Html$div = _VirtualDom_node('div');
+var $elm$virtual_dom$VirtualDom$map = _VirtualDom_map;
+var $elm$html$Html$map = $elm$virtual_dom$VirtualDom$map;
 var $elm$virtual_dom$VirtualDom$keyedNode = function (tag) {
 	return _VirtualDom_keyedNode(
 		_VirtualDom_noScript(tag));
@@ -6628,17 +7460,31 @@ var $elm$html$Html$Events$onClick = function (msg) {
 		'click',
 		$elm$json$Json$Decode$succeed(msg));
 };
+var $author$project$Internal$SafeInt$toString = function (_v0) {
+	var n = _v0.a;
+	return $elm$core$String$fromInt(n);
+};
+var $author$project$Internal$ThreadId$toString = function (_v0) {
+	var ls = _v0.a;
+	return function (str) {
+		return 'tid_' + str;
+	}(
+		A2(
+			$elm$core$String$join,
+			'_',
+			A2($elm$core$List$map, $author$project$Internal$SafeInt$toString, ls)));
+};
+var $author$project$Thread$Procedure$stringifyThreadId = function (_v0) {
+	var tid = _v0.a;
+	return $author$project$Internal$ThreadId$toString(tid);
+};
 var $elm$virtual_dom$VirtualDom$style = _VirtualDom_style;
 var $elm$html$Html$Attributes$style = $elm$virtual_dom$VirtualDom$style;
 var $elm$virtual_dom$VirtualDom$text = _VirtualDom_text;
 var $elm$html$Html$text = $elm$virtual_dom$VirtualDom$text;
-var $author$project$Advanced$Resource$toList = function (_v0) {
-	var resource = _v0.a;
-	return resource.list;
-};
-var $author$project$Advanced$Resource$toString = function (_v0) {
-	var n = _v0.a;
-	return $elm$core$String$fromInt(n);
+var $author$project$Thread$LocalMemory$toList = function (_v0) {
+	var a = _v0.a;
+	return a.list;
 };
 var $elm$json$Json$Encode$string = _Json_wrap;
 var $elm$html$Html$Attributes$stringProperty = F2(
@@ -6844,70 +7690,81 @@ var $author$project$Advanced$GoatCard$savedModeView = function (saved) {
 			]));
 };
 var $author$project$Advanced$GoatCard$view = function (_v0) {
-	var shared = _v0.a;
-	return shared.onEditing ? $author$project$Advanced$GoatCard$editModeView(shared.form) : $author$project$Advanced$GoatCard$savedModeView(shared.saved);
+	var memory = _v0.a;
+	return memory.onEditing ? $author$project$Advanced$GoatCard$editModeView(memory.form) : $author$project$Advanced$GoatCard$savedModeView(memory.saved);
 };
-var $author$project$Advanced$view = function (shared) {
-	return {
-		body: _List_fromArray(
-			[
-				A2(
-				$elm$html$Html$div,
-				_List_fromArray(
-					[
-						A2($elm$html$Html$Attributes$style, 'display', 'inline-block'),
-						A2($elm$html$Html$Attributes$style, 'padding', '0.4em'),
-						A2($elm$html$Html$Attributes$style, 'margin', '0')
-					]),
-				_List_fromArray(
-					[
-						A2(
-						$elm$html$Html$div,
-						_List_fromArray(
-							[
-								A2($elm$html$Html$Attributes$style, 'padding', '0.4em')
-							]),
-						_List_fromArray(
-							[
-								A2(
-								$elm$html$Html$button,
-								_List_fromArray(
-									[
-										$elm$html$Html$Attributes$type_('button'),
-										$elm$html$Html$Events$onClick($author$project$Advanced$ClickAddGoatCard)
-									]),
-								_List_fromArray(
-									[
-										$elm$html$Html$text('Add new card')
-									]))
-							])),
-						A3(
-						$elm$html$Html$Keyed$node,
-						'div',
-						_List_fromArray(
-							[
-								A2($elm$html$Html$Attributes$style, 'padding', '0.4em')
-							]),
-						A2(
-							$elm$core$List$map,
-							function (_v0) {
-								var rid = _v0.a;
-								var goatCard = _v0.b;
-								return _Utils_Tuple2(
-									$author$project$Advanced$Resource$toString(rid),
+var $author$project$Advanced$view = F2(
+	function (tid, shared) {
+		return {
+			body: _List_fromArray(
+				[
+					A2(
+					$elm$html$Html$div,
+					_List_fromArray(
+						[
+							A2($elm$html$Html$Attributes$style, 'display', 'inline-block'),
+							A2($elm$html$Html$Attributes$style, 'padding', '0.4em'),
+							A2($elm$html$Html$Attributes$style, 'margin', '0')
+						]),
+					_List_fromArray(
+						[
+							A2(
+							$elm$html$Html$div,
+							_List_fromArray(
+								[
+									A2($elm$html$Html$Attributes$style, 'padding', '0.4em')
+								]),
+							_List_fromArray(
+								[
 									A2(
-										$elm$html$Html$map,
-										$author$project$Advanced$GoatCardGlobal(rid),
-										$author$project$Advanced$GoatCard$view(goatCard)));
-							},
-							$author$project$Advanced$Resource$toList(shared.cards)))
-					]))
-			]),
-		title: 'Advanced sample app'
-	};
-};
+									$elm$html$Html$button,
+									_List_fromArray(
+										[
+											$elm$html$Html$Attributes$type_('button'),
+											$elm$html$Html$Events$onClick(
+											A2($author$project$Thread$Procedure$setTarget, tid, $author$project$Advanced$ClickAddGoatCard))
+										]),
+									_List_fromArray(
+										[
+											$elm$html$Html$text('Add new card')
+										]))
+								])),
+							A3(
+							$elm$html$Html$Keyed$node,
+							'div',
+							_List_fromArray(
+								[
+									A2($elm$html$Html$Attributes$style, 'padding', '0.4em')
+								]),
+							A2(
+								$elm$core$List$map,
+								function (_v0) {
+									var rid = _v0.a;
+									var goatCard = _v0.b;
+									return _Utils_Tuple2(
+										$author$project$Thread$Procedure$stringifyThreadId(rid),
+										A2(
+											$elm$html$Html$map,
+											A2(
+												$elm$core$Basics$composeL,
+												$author$project$Thread$Procedure$setTarget(rid),
+												$author$project$Advanced$GoatCardEvent),
+											$author$project$Advanced$GoatCard$view(goatCard)));
+								},
+								$elm$core$List$reverse(
+									$author$project$Thread$LocalMemory$toList(shared.cards))))
+						]))
+				]),
+			title: 'Advanced sample app'
+		};
+	});
 var $author$project$Advanced$main = $author$project$Thread$Browser$document(
-	{init: $author$project$Advanced$init, procedure: $author$project$Advanced$procedure, subscriptions: $author$project$Advanced$subscriptions, view: $author$project$Advanced$view});
+	{
+		init: $author$project$Advanced$init,
+		procedures: $author$project$Advanced$procedures,
+		subscriptions: $author$project$Thread$Browser$globalSubscriptions($author$project$Advanced$subscriptions),
+		view: $author$project$Advanced$view
+	});
 _Platform_export({'Advanced':{'init':$author$project$Advanced$main(
 	$elm$json$Json$Decode$succeed(_Utils_Tuple0))(0)}});}(this));
 
