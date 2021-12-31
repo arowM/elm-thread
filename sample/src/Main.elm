@@ -182,6 +182,7 @@ procedures () _ =
                     ]
 
                 _ ->
+                    -- When returning empty list, `await` awaits events again.
                     []
     , putLog "Asynchronous thread for clock..."
     , Procedure.async clockProcedures
@@ -304,9 +305,11 @@ sleep msec =
                 \event _ ->
                     case event of
                         WakeUp ->
+                            -- Do nothing, but do not await the next event.
                             [ Procedure.none
                             ]
 
                         _ ->
+                            -- Do nothing, and await the next event again.
                             []
             ]
