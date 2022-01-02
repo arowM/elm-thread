@@ -4,6 +4,8 @@ module Internal.SafeInt exposing
     , maxBound
     , inc
     , toString
+    , decoder
+    , toValue
     )
 
 {-|
@@ -13,8 +15,13 @@ module Internal.SafeInt exposing
 @docs maxBound
 @docs inc
 @docs toString
+@docs decoder
+@docs toValue
 
 -}
+
+import Json.Decode as JD exposing (Decoder)
+import Json.Encode as JE exposing (Value)
 
 
 {-| Integers guaranteed not to exceed safe limits.
@@ -70,3 +77,16 @@ inc (SafeInt n) =
 toString : SafeInt -> String
 toString (SafeInt n) =
     String.fromInt n
+
+
+{-| -}
+decoder : Decoder SafeInt
+decoder =
+    JD.int
+        |> JD.map SafeInt
+
+
+{-| -}
+toValue : SafeInt -> Value
+toValue (SafeInt n) =
+    JE.int n

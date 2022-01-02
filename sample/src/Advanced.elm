@@ -7,7 +7,8 @@ import Html.Events as Events
 import Html.Keyed as Keyed
 import Thread.Browser as Browser exposing (Document, Program)
 import Thread.LocalMemory as LocalMemory exposing (LocalMemory)
-import Thread.Procedure as Procedure exposing (Block, Msg, ThreadId)
+import Thread.Procedure as Procedure exposing (Block, Msg)
+import Thread.ThreadId as ThreadId exposing (ThreadId)
 import Thread.Wrapper exposing (Wrapper)
 
 
@@ -74,7 +75,7 @@ view tid shared =
                     |> List.reverse
                     |> List.map
                         (\( rid, goatCard ) ->
-                            ( Procedure.stringifyThreadId rid
+                            ( ThreadId.toString rid
                             , GoatCard.view goatCard
                                 |> Html.map
                                     (Procedure.setTarget rid << GoatCardEvent)

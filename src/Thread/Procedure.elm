@@ -134,18 +134,19 @@ batch procs =
 
 {-| An identifier for a thread.
 -}
-type ThreadId
-    = ThreadId ThreadId.ThreadId
+type alias ThreadId =
+    ThreadId.ThreadId
 
 
 {-| Convert `ThreadId` into `String`.
 
 Different `ThreadId`s will be converted to different strings, and the same `ThreadId`s will always be converted to the same string.
+This is an alias for the `Thread.ThreadId.toString`.
 
 -}
 stringifyThreadId : ThreadId -> String
-stringifyThreadId (ThreadId tid) =
-    ThreadId.toString tid
+stringifyThreadId =
+    ThreadId.toString
 
 
 {-| An alias for a bunch of `Procedure`s.
@@ -218,7 +219,7 @@ async f =
     Procedure <|
         Internal.async <|
             \tid ->
-                f (ThreadId tid)
+                f tid
                     |> batch
                     |> (\(Procedure proc) -> proc)
 
@@ -269,7 +270,7 @@ sync fs =
         (\f tid ->
             let
                 (Procedure proc) =
-                    f (ThreadId tid)
+                    f tid
                         |> batch
             in
             proc
@@ -292,7 +293,7 @@ race fs =
         (\f tid ->
             let
                 (Procedure proc) =
-                    f (ThreadId tid)
+                    f tid
                         |> batch
             in
             proc
@@ -324,7 +325,7 @@ addFinalizer f =
             \tid ->
                 let
                     (Procedure proc) =
-                        f (ThreadId tid) |> batch
+                        f tid |> batch
                 in
                 proc
 
@@ -339,7 +340,7 @@ modifyAndThen f g =
     Procedure <|
         Internal.modifyAndThen (\_ memory -> f memory) <|
             \tid x ->
-                g x (ThreadId tid)
+                g x tid
                     |> batch
                     |> (\(Procedure proc) -> proc)
 
@@ -428,7 +429,7 @@ jump f =
     Procedure <|
         Internal.jump <|
             \tid ->
-                f (ThreadId tid)
+                f tid
                     |> batch
                     |> (\(Procedure proc) -> proc)
 
@@ -520,10 +521,13 @@ init memory f =
 
 
 {-| `ThreadId` for the initially loaded procedure.
+
+This is an alias for `Thread.ThreadId.init`.
+
 -}
 initThreadId : ThreadId
 initThreadId =
-    ThreadId ThreadId.init
+    ThreadId.init
 
 
 {-| -}
@@ -540,7 +544,7 @@ mapMsg f (Msg msg) =
 {-| Set the target thread for an event by its `ThreadId`.
 -}
 setTarget : ThreadId -> event -> Msg event
-setTarget (ThreadId tid) event =
+setTarget tid event =
     Msg (Internal.setTarget tid event)
 
 

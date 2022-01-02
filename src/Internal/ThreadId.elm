@@ -3,6 +3,8 @@ module Internal.ThreadId exposing
     , init
     , inc
     , toString
+    , decoder
+    , toValue
     )
 
 {-|
@@ -11,10 +13,14 @@ module Internal.ThreadId exposing
 @docs init
 @docs inc
 @docs toString
+@docs decoder
+@docs toValue
 
 -}
 
 import Internal.SafeInt as SafeInt exposing (SafeInt)
+import Json.Decode as JD exposing (Decoder)
+import Json.Encode as JE exposing (Value)
 
 
 {-| ID to determine to which thread a local message is addressed.
@@ -64,3 +70,18 @@ toString (ThreadId ls) =
     List.map SafeInt.toString ls
         |> String.join "_"
         |> (\str -> "tid_" ++ str)
+
+
+{-| JSON decoder.
+-}
+decoder : Decoder ThreadId
+decoder =
+    JD.list SafeInt.decoder
+        |> JD.map ThreadId
+
+
+{-| Convert into JSON `Value`.
+-}
+toValue : ThreadId -> Value
+toValue (ThreadId ls) =
+    JE.list SafeInt.toValue ls
