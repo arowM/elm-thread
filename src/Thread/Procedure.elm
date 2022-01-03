@@ -7,6 +7,7 @@ module Thread.Procedure exposing
     , none
     , modify
     , push
+    , send
     , await
     , async
     , block
@@ -20,6 +21,7 @@ module Thread.Procedure exposing
     , when
     , unless
     , withMemory
+    , withThreadId
     , lift
     , wrap
     , liftBlock
@@ -51,6 +53,7 @@ module Thread.Procedure exposing
 @docs none
 @docs modify
 @docs push
+@docs send
 @docs await
 @docs async
 @docs block
@@ -68,6 +71,7 @@ module Thread.Procedure exposing
 @docs when
 @docs unless
 @docs withMemory
+@docs withThreadId
 
 
 # Converters
@@ -180,6 +184,14 @@ push f =
                     |> List.singleton
 
 
+{-| Send an Event to the specific thread.
+-}
+send : ThreadId -> event -> Procedure memory event
+send tid event =
+    Internal.send tid event
+        |> Procedure
+
+
 {-| Construct a `Procedure` instance that awaits the local events for the thread.
 
 If it returns empty list, it awaits again.
@@ -257,6 +269,13 @@ Infinite recursion by giving itself as the argument to `async` is not recommende
 block : Block memory event -> Procedure memory event
 block f =
     sync [ f ]
+
+
+{-| Run sequence of `Procedures` with current `ThreadId`.
+-}
+withThreadId : (ThreadId -> List (Procedure memory event)) -> Procedure memory event
+withThreadId f =
+    modifyAndThen (\m -> ( m, () )) (\_ -> f)
 
 
 {-| Construct a `Procedure` instance that wait for all the given `Block`s to be completed.
@@ -635,7 +654,7 @@ liftBlock lifter f tid =
 wrap : Wrapper a b -> Procedure memory b -> Procedure memory a
 wrap wrapper (Procedure proc) =
     Internal.mapCmd (Cmd.map (Internal.mapMsg wrapper.wrap)) proc
-        |> Internal.liftEvent wrapper.unwrap
+        |> Internal.liftEvent wrapper
         |> Procedure
 
 

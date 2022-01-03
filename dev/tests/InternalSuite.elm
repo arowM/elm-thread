@@ -12,8 +12,11 @@ suite =
         mainThreadId =
             ThreadId.init
 
-        childThreadId =
+        sendEventThreadId =
             ThreadId.inc mainThreadId
+
+        childThreadId =
+            ThreadId.inc sendEventThreadId
 
         asyncInForkThreadId =
             ThreadId.inc childThreadId
@@ -51,22 +54,32 @@ suite =
             }
 
         thread =
-            Internal.fromProcedure initialState sampleProcedure
+            Internal.fromProcedure initialState (sampleProcedure mainThreadId)
+
+        sendEvent =
+            Internal.run
+                (Internal.setTarget mainThreadId Cleanup)
+                thread
+
+        cleanup0 =
+            Internal.run
+                (Internal.setTarget mainThreadId Cleanup)
+                sendEvent
 
         receiveThreadEvent =
             Internal.run
                 (Internal.setTarget mainThreadId (Event2 0))
-                thread
+                cleanup0
 
         ignoreUnconcernedThreadEvent =
             Internal.run
                 (Internal.setTarget mainThreadId Unconcerned)
-                thread
+                cleanup0
 
         ignoreAnotherThreadEvent =
             Internal.run
                 (Internal.setTarget childThreadId (Event2 0))
-                thread
+                cleanup0
 
         awaitAgainAfterUnconcernedThreadEvent =
             Internal.run
@@ -193,7 +206,28 @@ suite =
                         , log mainThreadId "Cmd1 has pushed"
                         ]
                     , childLog = []
-                    , nextThreadId = childThreadId
+                    , nextThreadId = ThreadId.inc mainThreadId
+                    }
+        , test "sendEvent" <|
+            \_ ->
+                Expect.equal (stateOf sendEvent)
+                    { cmds = []
+                    , log =
+                        [ log mainThreadId <| "sendEvent"
+                        , log mainThreadId <| "Received event from child thread: send from child."
+                        , log sendEventThreadId <| "Propagated from parent: send from child."
+                        ]
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc sendEventThreadId
+                    }
+        , test "cleanup0" <|
+            \_ ->
+                Expect.equal (stateOf cleanup0)
+                    { cmds = []
+                    , log =
+                        []
+                    , childLog = []
+                    , nextThreadId = ThreadId.inc sendEventThreadId
                     }
         , test "receiveThreadEvent" <|
             \_ ->
@@ -203,29 +237,25 @@ suite =
                         [ log mainThreadId "Received Event2 message: 0"
                         ]
                     , childLog = []
-                    , nextThreadId = childThreadId
+                    , nextThreadId = ThreadId.inc sendEventThreadId
                     }
         , test "ignoreUnconcernedThreadEvent" <|
             \_ ->
                 Expect.equal (stateOf ignoreUnconcernedThreadEvent)
                     { cmds = []
                     , log =
-                        [ log mainThreadId "Start a thread"
-                        , log mainThreadId "Cmd1 has pushed"
-                        ]
+                        []
                     , childLog = []
-                    , nextThreadId = childThreadId
+                    , nextThreadId = ThreadId.inc sendEventThreadId
                     }
         , test "ignoreAnotherThreadEvent" <|
             \_ ->
                 Expect.equal (stateOf ignoreAnotherThreadEvent)
                     { cmds = []
                     , log =
-                        [ log mainThreadId "Start a thread"
-                        , log mainThreadId "Cmd1 has pushed"
-                        ]
+                        []
                     , childLog = []
-                    , nextThreadId = childThreadId
+                    , nextThreadId = ThreadId.inc sendEventThreadId
                     }
         , test "awaitAgainAfterUnconcernedThreadEvent" <|
             \_ ->
@@ -235,7 +265,7 @@ suite =
                         [ log mainThreadId "Received Event2 message: 1"
                         ]
                     , childLog = []
-                    , nextThreadId = childThreadId
+                    , nextThreadId = ThreadId.inc sendEventThreadId
                     }
         , test "awaitAgainAfterAnotherThreadEvent" <|
             \_ ->
@@ -245,7 +275,7 @@ suite =
                         [ log mainThreadId "Received Event2 message: 1"
                         ]
                     , childLog = []
-                    , nextThreadId = childThreadId
+                    , nextThreadId = ThreadId.inc sendEventThreadId
                     }
         , test "receiveNextThreadEvent" <|
             \_ ->
@@ -691,14 +721,36 @@ type ChildCmd
 -- Sample procedure
 
 
-sampleProcedure : Procedure Cmd Memory Event
-sampleProcedure =
+sampleProcedure : ThreadId -> Procedure Cmd Memory Event
+sampleProcedure tid =
     Internal.batch
         [ putLog "Start a thread"
         , Internal.push <| \_ _ -> [ Cmd1 ]
         , putLog "Cmd1 has pushed"
         , Internal.push <| \_ _ -> [ Cmd2 ]
         , Internal.addFinalizer <| \_ -> putLog "Finalize sampleProcedure1."
+
+        -- sendEvent
+        , clear "sendEvent"
+        , Internal.async <| sendEventProcedure tid
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    Event1 str ->
+                        Just <| putLog <| "Received event from child thread: " ++ str ++ "."
+
+                    _ ->
+                        Nothing
+
+        -- cleanup0
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    Cleanup ->
+                        Just clearLog
+
+                    _ ->
+                        Nothing
 
         -- receiveThreadEvent,
         -- ignoreUnconcernedThreadEvent,
@@ -730,10 +782,13 @@ sampleProcedure =
                         Nothing
         , putLog "This is evaluated immediately after await."
         , Internal.fork <|
-            \tid ->
-                childProcedure tid
+            \tid2 ->
+                childProcedure tid2
                     |> Internal.liftMemory memoryLifter
-                    |> Internal.liftEvent mgetChild
+                    |> Internal.liftEvent
+                        { unwrap = mgetChild
+                        , wrap = ChildEvent
+                        }
                     |> Internal.mapCmd ChildCmd
         , Internal.push <| \_ _ -> [ Cmd1 ]
 
@@ -767,7 +822,7 @@ sampleProcedure =
                     _ ->
                         Nothing
         , Internal.push <| \_ _ -> [ Cmd2 ]
-        , Internal.fork <| \tid -> sampleProcedure3 tid
+        , Internal.fork <| \tid2 -> sampleProcedure3 tid2
 
         -- globalToAllThread
         , Internal.await <|
@@ -806,7 +861,7 @@ sampleProcedure =
             \event _ ->
                 case event of
                     Cleanup ->
-                        Just <| clearLog
+                        Just clearLog
 
                     _ ->
                         Nothing
@@ -829,9 +884,9 @@ sampleProcedure =
                         Nothing
         , Internal.fork sampleProcedure3Infinite
         , Internal.modifyAndThen
-            (\tid memory ->
+            (\tid2 memory ->
                 ( { memory
-                    | log = [ mat tid ]
+                    | log = [ mat tid2 ]
                   }
                 , logLength memory.log
                 )
@@ -850,6 +905,22 @@ sampleProcedure =
         , Internal.quit
         , putLog "Unreachable"
         ]
+
+
+clear : String -> Procedure Cmd Memory Event
+clear str =
+    Internal.await <|
+        \event _ ->
+            case event of
+                Cleanup ->
+                    Just <|
+                        Internal.batch
+                            [ clearLog
+                            , putLog str
+                            ]
+
+                _ ->
+                    Nothing
 
 
 childProcedure : ThreadId -> Procedure ChildCmd ChildMemory ChildEvent
@@ -938,6 +1009,22 @@ asyncProcedure =
                 case event of
                     InheritedEvent str ->
                         Just <| putParentLog <| "asyncProcedure received InheritedEvent again: " ++ str ++ "."
+
+                    _ ->
+                        Nothing
+        ]
+
+
+sendEventProcedure : ThreadId -> ThreadId -> Procedure Cmd Memory Event
+sendEventProcedure parentTid _ =
+    Internal.batch
+        -- sendEvent
+        [ Internal.send parentTid (Event1 "send from child")
+        , Internal.await <|
+            \event _ ->
+                case event of
+                    Event1 str ->
+                        Just <| putLog <| "Propagated from parent: " ++ str ++ "."
 
                     _ ->
                         Nothing

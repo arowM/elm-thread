@@ -13,6 +13,7 @@ module Internal exposing
     , batch
     , modify
     , push
+    , send
     , await
     , fork
     , async
@@ -23,6 +24,7 @@ module Internal exposing
     , addFinalizer
     , jump
     , Lifter
+    , Wrapper
     , liftMemory
     , liftEvent
     , mapCmd
@@ -51,6 +53,7 @@ module Internal exposing
 @docs batch
 @docs modify
 @docs push
+@docs send
 @docs await
 @docs fork
 @docs async
@@ -65,6 +68,7 @@ module Internal exposing
 # Converters
 
 @docs Lifter
+@docs Wrapper
 @docs liftMemory
 @docs liftEvent
 @docs mapCmd
@@ -157,6 +161,7 @@ toThread fp =
                             |> toThread
                 }
                 |> digForks o.forks
+                |> sendMsgs o.msgs
 
         Finalizing o ->
             Thread
@@ -205,6 +210,11 @@ digForks f (Thread t) =
                 }
 
 
+sendMsgs : List (Msg event) -> Thread cmd memory event -> Thread cmd memory event
+sendMsgs msgs t =
+    List.foldl run t msgs
+
+
 mergeIndependently : (ThreadState memory -> Thread cmd memory event) -> Thread cmd memory event -> Thread cmd memory event
 mergeIndependently f (Thread t) =
     let
@@ -221,10 +231,13 @@ mergeIndependently f (Thread t) =
         }
 
 
+{-| Intermediate type, which helps to handle operations that affects ancestor threads.
+-}
 type FromProcedure cmd memory event
     = Running
         { newState : ThreadState memory
         , cmds : List ( ThreadId, cmd )
+        , msgs : List (Msg event) -- `Msg`s sent to ancestor threads.
         , next : Msg event -> ThreadState memory -> FromProcedure cmd memory event
 
         -- , finalizing : Msg event -> ThreadState memory -> FromProcedure cmd memory event
@@ -234,6 +247,7 @@ type FromProcedure cmd memory event
     | Finalizing
         { newState : ThreadState memory
         , cmds : List ( ThreadId, cmd )
+        , msgs : List (Msg event)
 
         -- , finalizing : Msg event -> ThreadState memory -> FromProcedure cmd memory event
         , forks : ThreadState memory -> FromProcedure cmd memory event
@@ -241,6 +255,7 @@ type FromProcedure cmd memory event
     | Completed
         { newState : ThreadState memory
         , cmds : List ( ThreadId, cmd )
+        , msgs : List (Msg event)
         }
 
 
@@ -249,6 +264,7 @@ noProcedure s =
     Completed
         { newState = s
         , cmds = []
+        , msgs = []
         }
 
 
@@ -259,6 +275,7 @@ fromProcedure_ myThreadId state parents procs =
             Completed
                 { newState = state
                 , cmds = []
+                , msgs = []
                 }
 
         (DoAndThen f) :: ps2 ->
@@ -308,6 +325,7 @@ fromProcedure_ myThreadId state parents procs =
                             Nothing ->
                                 fromProcedure_ myThreadId s parents procs
                 , cmds = []
+                , msgs = []
                 , forks = noProcedure
                 , finally = noProcedure
                 }
@@ -355,11 +373,27 @@ fromProcedure_ myThreadId state parents procs =
                 ps1 =
                     f myThreadId
             in
-            -- fromProcedure_ myThreadId state parents (ps1 ++ ps2)
             fromProcedure_ myThreadId state parents ps1
+
+        (Issue msgs) :: ps ->
+            fromProcedure_ myThreadId state parents ps
+                |> prependMsgs msgs
 
         Quit :: _ ->
             noProcedure state
+
+
+prependMsgs : List (Msg event) -> FromProcedure cmd memory event -> FromProcedure cmd memory event
+prependMsgs msgs fp =
+    case fp of
+        Running o ->
+            Running { o | msgs = msgs ++ o.msgs }
+
+        Finalizing o ->
+            Finalizing { o | msgs = msgs ++ o.msgs }
+
+        Completed o ->
+            Completed { o | msgs = msgs ++ o.msgs }
 
 
 prependCmds : List ( ThreadId, cmd ) -> FromProcedure cmd memory event -> FromProcedure cmd memory event
@@ -402,10 +436,13 @@ applyFinally f fp =
             Finalizing
                 { newState = o.newState
                 , cmds = o.cmds
+                , msgs = o.msgs
                 , forks = f
                 }
 
 
+{-| Run a function after the given `FromProcedure` ends.
+-}
 andThen : (ThreadState memory -> FromProcedure cmd memory event) -> FromProcedure cmd memory event -> FromProcedure cmd memory event
 andThen f fp =
     case fp of
@@ -424,6 +461,7 @@ andThen f fp =
                     Running
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , next = o2.next
                         , forks =
                             \s ->
@@ -436,6 +474,7 @@ andThen f fp =
                     Finalizing
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , forks =
                             \s ->
                                 o.forks s
@@ -446,6 +485,7 @@ andThen f fp =
                     Finalizing
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , forks = o.forks
                         }
 
@@ -455,6 +495,7 @@ andThen f fp =
                     Running
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , next = o2.next
                         , forks = o2.forks
                         , finally = o2.finally
@@ -464,6 +505,7 @@ andThen f fp =
                     Finalizing
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , forks = o2.forks
                         }
 
@@ -471,34 +513,37 @@ andThen f fp =
                     Completed
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         }
 
 
+{-| -}
 andForks : (ThreadState memory -> FromProcedure cmd memory event) -> FromProcedure cmd memory event -> FromProcedure cmd memory event
 andForks forked fp =
     case fp of
-        Running to ->
+        Running o ->
             Running
-                { to
+                { o
                     | forks =
                         \s ->
-                            to.forks s
+                            o.forks s
                                 |> andIndependently forked
                 }
 
-        Finalizing to ->
+        Finalizing o ->
             Finalizing
-                { to
+                { o
                     | forks =
                         \s ->
-                            to.forks s
+                            o.forks s
                                 |> andIndependently forked
                 }
 
-        Completed to ->
+        Completed o ->
             Finalizing
-                { newState = to.newState
-                , cmds = to.cmds
+                { newState = o.newState
+                , cmds = o.cmds
+                , msgs = o.msgs
                 , forks = forked
                 }
 
@@ -512,6 +557,7 @@ andAsync f fp =
                     Running
                         { newState = oasync.newState
                         , cmds = o.cmds ++ oasync.cmds
+                        , msgs = o.msgs ++ oasync.msgs
                         , next =
                             \msg s ->
                                 o.next msg s
@@ -530,6 +576,7 @@ andAsync f fp =
                     Running
                         { newState = oasync.newState
                         , cmds = o.cmds ++ oasync.cmds
+                        , msgs = o.msgs ++ oasync.msgs
                         , next = o.next
                         , forks =
                             \s ->
@@ -542,6 +589,7 @@ andAsync f fp =
                     Running
                         { newState = oasync.newState
                         , cmds = o.cmds ++ oasync.cmds
+                        , msgs = o.msgs ++ oasync.msgs
                         , next = o.next
                         , forks = o.forks
                         , finally = o.finally
@@ -553,6 +601,7 @@ andAsync f fp =
                     Finalizing
                         { newState = oasync.newState
                         , cmds = o.cmds ++ oasync.cmds
+                        , msgs = o.msgs ++ oasync.msgs
                         , forks =
                             \s ->
                                 o.forks s
@@ -564,6 +613,7 @@ andAsync f fp =
                     Finalizing
                         { newState = oasync.newState
                         , cmds = o.cmds ++ oasync.cmds
+                        , msgs = o.msgs ++ oasync.msgs
                         , forks =
                             \s ->
                                 o.forks s
@@ -574,6 +624,7 @@ andAsync f fp =
                     Finalizing
                         { newState = oasync.newState
                         , cmds = o.cmds ++ oasync.cmds
+                        , msgs = o.msgs ++ oasync.msgs
                         , forks = o.forks
                         }
 
@@ -583,6 +634,7 @@ andAsync f fp =
                     Finalizing
                         { newState = oasync.newState
                         , cmds = o.cmds ++ oasync.cmds
+                        , msgs = o.msgs ++ oasync.msgs
                         , forks =
                             \s ->
                                 oasync.forks s
@@ -593,6 +645,7 @@ andAsync f fp =
                     Finalizing
                         { newState = oasync.newState
                         , cmds = o.cmds ++ oasync.cmds
+                        , msgs = o.msgs ++ oasync.msgs
                         , forks = oasync.forks
                         }
 
@@ -600,6 +653,7 @@ andAsync f fp =
                     Completed
                         { newState = oasync.newState
                         , cmds = o.cmds ++ oasync.cmds
+                        , msgs = o.msgs ++ oasync.msgs
                         }
 
 
@@ -635,6 +689,7 @@ andNextDep f fp =
                     Running
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , next =
                             \msg s ->
                                 o.next msg s
@@ -653,6 +708,7 @@ andNextDep f fp =
                     Running
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , next = o.next
                         , forks =
                             \s ->
@@ -665,6 +721,7 @@ andNextDep f fp =
                     Running
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , next = o.next
                         , forks = o.forks
                         , finally = o.finally
@@ -676,6 +733,7 @@ andNextDep f fp =
                     Running
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , next = o2.next
                         , forks =
                             \s ->
@@ -688,6 +746,7 @@ andNextDep f fp =
                     Finalizing
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , forks =
                             \s ->
                                 o.forks s
@@ -698,6 +757,7 @@ andNextDep f fp =
                     Finalizing
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , forks = o.forks
                         }
 
@@ -707,6 +767,7 @@ andNextDep f fp =
                     Running
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , next = o2.next
                         , forks = o2.forks
                         , finally = o2.finally
@@ -716,6 +777,7 @@ andNextDep f fp =
                     Finalizing
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , forks = o2.forks
                         }
 
@@ -723,6 +785,7 @@ andNextDep f fp =
                     Completed
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         }
 
 
@@ -763,6 +826,7 @@ andNextRaceDep f acc =
                     Running
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , next =
                             \msg s ->
                                 o.next msg s
@@ -781,6 +845,7 @@ andNextRaceDep f acc =
                     Finalizing
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , forks =
                             \s ->
                                 o.forks s
@@ -792,6 +857,7 @@ andNextRaceDep f acc =
                     Finalizing
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , forks =
                             \s ->
                                 o.forks s
@@ -804,6 +870,7 @@ andNextRaceDep f acc =
                     Finalizing
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , forks =
                             \s ->
                                 o.forks s
@@ -815,6 +882,7 @@ andNextRaceDep f acc =
                     Finalizing
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , forks =
                             \s ->
                                 o.forks s
@@ -825,6 +893,7 @@ andNextRaceDep f acc =
                     Finalizing
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , forks = o.forks
                         }
 
@@ -834,6 +903,7 @@ andNextRaceDep f acc =
                     Finalizing
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , forks =
                             \s ->
                                 o2.forks s
@@ -844,6 +914,7 @@ andNextRaceDep f acc =
                     Finalizing
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         , forks = o2.forks
                         }
 
@@ -851,6 +922,7 @@ andNextRaceDep f acc =
                     Completed
                         { newState = o2.newState
                         , cmds = o.cmds ++ o2.cmds
+                        , msgs = o.msgs ++ o2.msgs
                         }
 
 
@@ -901,11 +973,15 @@ type Procedure_ cmd memory event
     | Do (ThreadId -> memory -> ( memory, List cmd ))
     | AddFinalizer (ThreadId -> List (Procedure_ cmd memory event))
     | Await (List ThreadId -> Msg event -> memory -> Maybe (List (Procedure_ cmd memory event)))
+      -- Run concurrently in new thread, alive even when parent thread ends
     | Fork (ThreadId -> List (Procedure_ cmd memory event))
+      -- Run concurrently in new thread, killed when parent thread ends
     | Async (ThreadId -> List (Procedure_ cmd memory event))
     | Sync (List (ThreadId -> List (Procedure_ cmd memory event)))
     | Race (List (ThreadId -> List (Procedure_ cmd memory event)))
+      -- Ignore subsequent `Procedure`s and run given `Procedure`s in current thread.
     | Turn (ThreadId -> List (Procedure_ cmd memory event))
+    | Issue (List (Msg event))
     | Quit
 
 
@@ -1001,20 +1077,31 @@ liftMemory_ lifter pb =
                     f x
                         |> List.map (liftMemory_ lifter)
 
+        Issue msgs ->
+            Issue msgs
+
         Quit ->
             Quit
 
 
 {-| -}
-liftEvent : (a -> Maybe b) -> Procedure cmd memory b -> Procedure cmd memory a
-liftEvent mget (Procedure ps) =
-    List.map (liftEvent_ mget) ps
+liftEvent : Wrapper a b -> Procedure cmd memory b -> Procedure cmd memory a
+liftEvent wrapper (Procedure ps) =
+    List.map (liftEvent_ wrapper) ps
         |> Procedure
 
 
+{-| Use to convert local event types.
+-}
+type alias Wrapper a b =
+    { unwrap : a -> Maybe b
+    , wrap : b -> a
+    }
+
+
 {-| -}
-liftEvent_ : (a -> Maybe b) -> Procedure_ cmd memory b -> Procedure_ cmd memory a
-liftEvent_ mget pb =
+liftEvent_ : Wrapper a b -> Procedure_ cmd memory b -> Procedure_ cmd memory a
+liftEvent_ wrapper pb =
     case pb of
         DoAndThen f ->
             DoAndThen <|
@@ -1025,7 +1112,7 @@ liftEvent_ mget pb =
                     in
                     ( memory2
                     , cmds
-                    , List.map (liftEvent_ mget) ps
+                    , List.map (liftEvent_ wrapper) ps
                     )
 
         Do f ->
@@ -1034,42 +1121,48 @@ liftEvent_ mget pb =
         AddFinalizer f ->
             AddFinalizer <|
                 \tid ->
-                    List.map (liftEvent_ mget) (f tid)
+                    List.map (liftEvent_ wrapper) (f tid)
 
         Await f ->
             Await <|
                 \tids msg memory ->
-                    mapMaybeEvent mget msg
+                    mapMaybeEvent wrapper.unwrap msg
                         |> Maybe.andThen
                             (\b ->
                                 f tids b memory
-                                    |> Maybe.map (List.map (liftEvent_ mget))
+                                    |> Maybe.map (List.map (liftEvent_ wrapper))
                             )
 
         Fork f ->
             Fork <|
                 \tid ->
                     f tid
-                        |> List.map (liftEvent_ mget)
+                        |> List.map (liftEvent_ wrapper)
 
         Async f ->
             Async <|
                 \tid ->
                     f tid
-                        |> List.map (liftEvent_ mget)
+                        |> List.map (liftEvent_ wrapper)
 
         Sync fs ->
             Sync <|
-                List.map (\f tid -> List.map (liftEvent_ mget) (f tid)) fs
+                List.map (\f tid -> List.map (liftEvent_ wrapper) (f tid)) fs
 
         Race fs ->
             Race <|
-                List.map (\f tid -> List.map (liftEvent_ mget) (f tid)) fs
+                List.map (\f tid -> List.map (liftEvent_ wrapper) (f tid)) fs
 
         Turn f ->
             Turn <|
                 \x ->
-                    f x |> List.map (liftEvent_ mget)
+                    f x |> List.map (liftEvent_ wrapper)
+
+        Issue msgs ->
+            List.map
+                (\(ThreadEvent tid a) -> ThreadEvent tid (wrapper.wrap a))
+                msgs
+                |> Issue
 
         Quit ->
             Quit
@@ -1151,6 +1244,9 @@ mapCmd_ set pb =
             Turn <|
                 \x ->
                     f x |> List.map (mapCmd_ set)
+
+        Issue msgs ->
+            Issue msgs
 
         Quit ->
             Quit
@@ -1255,6 +1351,12 @@ race fs =
                 )
                 fs
         ]
+
+
+{-| -}
+send : ThreadId -> event -> Procedure cmd memory event
+send tid event =
+    Procedure [ Issue [ ThreadEvent tid event ] ]
 
 
 {-| -}
