@@ -2,7 +2,6 @@ module Thread.Procedure exposing
     ( Procedure
     , batch
     , ThreadId
-    , stringifyThreadId
     , Block
     , none
     , modify
@@ -44,7 +43,6 @@ module Thread.Procedure exposing
 @docs Procedure
 @docs batch
 @docs ThreadId
-@docs stringifyThreadId
 @docs Block
 
 
@@ -136,21 +134,10 @@ batch procs =
         |> Procedure
 
 
-{-| An identifier for a thread.
+{-| Reexposing `Thread.ThreadId.ThreadId` for convenience.
 -}
 type alias ThreadId =
     ThreadId.ThreadId
-
-
-{-| Convert `ThreadId` into `String`.
-
-Different `ThreadId`s will be converted to different strings, and the same `ThreadId`s will always be converted to the same string.
-This is an alias for the `Thread.ThreadId.toString`.
-
--}
-stringifyThreadId : ThreadId -> String
-stringifyThreadId =
-    ThreadId.toString
 
 
 {-| An alias for a bunch of `Procedure`s.
