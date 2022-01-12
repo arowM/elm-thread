@@ -6,7 +6,6 @@ module Thread.Procedure exposing
     , none
     , modify
     , push
-    , send
     , await
     , async
     , block
@@ -52,7 +51,6 @@ module Thread.Procedure exposing
 @docs none
 @docs modify
 @docs push
-@docs send
 @docs await
 @docs async
 @docs block
@@ -169,14 +167,6 @@ push f =
                 f memory
                     |> Cmd.map (Internal.setTarget tid)
                     |> List.singleton
-
-
-{-| Send an Event to the specific thread.
--}
-send : ThreadId -> event -> Procedure memory event
-send tid event =
-    Internal.send tid event
-        |> Procedure
 
 
 {-| Construct a `Procedure` instance that awaits the local events for the thread.
