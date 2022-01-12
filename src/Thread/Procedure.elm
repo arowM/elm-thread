@@ -22,6 +22,7 @@ module Thread.Procedure exposing
     , withMemory
     , withThreadId
     , lift
+    , Lifter
     , wrap
     , liftBlock
     , wrapBlock
@@ -75,13 +76,13 @@ module Thread.Procedure exposing
 # Converters
 
 These items are needed when you try to build a hierarchy of memory and events in an SPA.
+For a sample, see [`sample/src/SPA.elm`](https://github.com/arowM/elm-thread/tree/main/sample/src).
 
 These items are used to build memory and event hierarchies, for example in SPAs.
 Note that the pattern often unnecessarily increases complexity, so you should first consider using monolithic shared memory and events.
 
-For a sample, see [`sample/src/Advanced.elm`](https://github.com/arowM/elm-thread/tree/main/sample/src) and [`sample/src/SPA.elm`](https://github.com/arowM/elm-thread/tree/main/sample/src).
-
 @docs lift
+@docs Lifter
 @docs wrap
 @docs liftBlock
 @docs wrapBlock
@@ -104,7 +105,6 @@ It is recommended to use `Thread.Browser` for normal use.
 
 import Internal
 import Internal.ThreadId as ThreadId
-import Thread.Lifter exposing (Lifter)
 import Thread.Wrapper exposing (Wrapper)
 
 
@@ -613,9 +613,19 @@ unless f =
 -- Converters
 
 
+{-| Use to convert shared memory types.
+-}
+type alias Lifter a b =
+    { get : a -> Maybe b
+    , set : b -> a -> a
+    }
+
+
 {-| Lift the memory type of of the given `Procedure`.
 
-Note that this function does not set up a dedicated memory for `b`, but simply makes it operate on the part of memory `a`; so the memory `b` is shared with other threads.
+Note1: This is a low level function. The `Thread.Lifter` module exposes convenient high level functions for you.
+
+Note2: This function does not set up a dedicated memory for `b`, but simply makes it operate on the part of memory `a`; so the memory `b` is shared with other threads.
 If you want to create a thread that allocates a dedicated memory area of type `b` for a given procedure, use functions in the [`Thread.LocalMemory` module](https://package.elm-lang.org/packages/arowM/elm-thread/latest/Thread-LocalMemory).
 
 -}

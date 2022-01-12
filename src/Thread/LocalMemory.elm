@@ -76,6 +76,25 @@ get target (LocalMemory local) =
         |> List.head
 
 
+{-| Update local memory value specified by the `ThreadId`. If the `ThreadId` is not found, do nothing.
+-}
+overwrite : ThreadId -> a -> LocalMemory a -> LocalMemory a
+overwrite target v (LocalMemory local) =
+    LocalMemory
+        { local
+            | list =
+                List.map
+                    (\( id, a ) ->
+                        if id == target then
+                            ( id, v )
+
+                        else
+                            ( id, a )
+                    )
+                    local.list
+        }
+
+
 {-| Assign a new local memory. Do not check if the `ThreadId` already exists.
 -}
 assign : ThreadId -> a -> LocalMemory a -> LocalMemory a
@@ -110,16 +129,22 @@ asyncChild :
     -> a
     -> Block a event
     -> Procedure memory event
-asyncChild lifter def f =
-    async lifter def <| \lift -> lift f
+asyncChild lifter def b =
+    async lifter def <| \l -> Procedure.liftBlock l b
 
 
-{-| Similar to `asyncChild`, but `async` can also handle parent `Procedure`s in the new thread.
+{-| Similar to `asyncChild`, but more flexible.
+
+  - arg1: Lifter for the target `LocalMemory`
+  - arg2: Initial value for the new local memory
+  - arg3: Function that returns `Block` evaluated in new thread
+      - It takes a `Lifter` for the local memory that is assigned for the new thread
+
 -}
 async :
     Lifter memory (LocalMemory a)
     -> a
-    -> ((Block a event -> Block memory event) -> Block memory event)
+    -> (Lifter memory a -> Block memory event)
     -> Procedure memory event
 async lifter def f =
     Procedure.async <|
@@ -143,7 +168,23 @@ async lifter def f =
                                 Nothing ->
                                     memory
                     ]
-            , f (Procedure.liftBlock (localLifter tid lifter)) tid
+            , f
+                { get =
+                    \memory ->
+                        lifter.get memory
+                            |> Maybe.andThen (get tid)
+                , set =
+                    \a memory ->
+                        case lifter.get memory of
+                            Nothing ->
+                                memory
+
+                            Just local ->
+                                lifter.set
+                                    (overwrite tid a local)
+                                    memory
+                }
+                tid
                 |> Procedure.batch
             ]
 
@@ -158,16 +199,22 @@ blockChild :
     -> a
     -> Block a event
     -> Procedure memory event
-blockChild lifter def f =
-    block lifter def <| \lift -> lift f
+blockChild lifter def b =
+    block lifter def <| \l -> Procedure.liftBlock l b
 
 
-{-| Similar to `blockChild`, but `block` can also handle parent `Procedure`s in the new thread.
+{-| Similar to `blockChild`, but more flexible.
+
+  - arg1: Lifter for the target `LocalMemory`
+  - arg2: Initial value for the new local memory
+  - arg3: Function that returns `Block` evaluated in new thread
+      - It takes a `Lifter` for the local memory that is assigned for the new thread
+
 -}
 block :
     Lifter memory (LocalMemory a)
     -> a
-    -> ((Block a event -> Block memory event) -> Block memory event)
+    -> (Lifter memory a -> Block memory event)
     -> Procedure memory event
 block lifter def f =
     Procedure.block <|
@@ -191,40 +238,22 @@ block lifter def f =
                                 Nothing ->
                                     memory
                     ]
-            , f (Procedure.liftBlock (localLifter tid lifter)) tid
+            , f
+                { get =
+                    \memory ->
+                        lifter.get memory
+                            |> Maybe.andThen (get tid)
+                , set =
+                    \a memory ->
+                        case lifter.get memory of
+                            Nothing ->
+                                memory
+
+                            Just local ->
+                                lifter.set
+                                    (overwrite tid a local)
+                                    memory
+                }
+                tid
                 |> Procedure.batch
             ]
-
-
-localLifter : ThreadId -> Lifter memory (LocalMemory a) -> Lifter memory a
-localLifter target lifter =
-    { get =
-        \memory ->
-            lifter.get memory
-                |> Maybe.andThen (get target)
-    , set =
-        \new memory ->
-            case lifter.get memory of
-                Nothing ->
-                    memory
-
-                Just (LocalMemory local) ->
-                    lifter.set
-                        (LocalMemory
-                            { local
-                                | list =
-                                    List.map
-                                        (\( id, old ) ->
-                                            ( id
-                                            , if id == target then
-                                                new
-
-                                              else
-                                                old
-                                            )
-                                        )
-                                        local.list
-                            }
-                        )
-                        memory
-    }
