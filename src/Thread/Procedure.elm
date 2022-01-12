@@ -18,8 +18,8 @@ module Thread.Procedure exposing
     , modifyAndThen
     , when
     , unless
+    , withMaybe
     , withMemory
-    , withThreadId
     , lift
     , Lifter
     , wrap
@@ -67,8 +67,8 @@ module Thread.Procedure exposing
 
 @docs when
 @docs unless
+@docs withMaybe
 @docs withMemory
-@docs withThreadId
 
 
 # Converters
@@ -246,13 +246,6 @@ Infinite recursion by giving itself as the argument to `async` is not recommende
 block : Block memory event -> Procedure memory event
 block f =
     sync [ f ]
-
-
-{-| Run sequence of `Procedures` with current `ThreadId`.
--}
-withThreadId : (ThreadId -> List (Procedure memory event)) -> Procedure memory event
-withThreadId f =
-    modifyAndThen (\m -> ( m, () )) (\_ -> f)
 
 
 {-| Construct a `Procedure` instance that wait for all the given `Block`s to be completed.
@@ -592,11 +585,25 @@ when f ls =
                 \_ -> []
 
 
-{-| Evaluate given `Procedure`s only if the first argument is `False` with current memory state, otherwise returns `none`.
+{-| Evaluate given `Procedure`s only if the first argument returns `False` with current memory state, otherwise returns `none`.
 -}
 unless : (memory -> Bool) -> List (Procedure memory event) -> Procedure memory event
 unless f =
     when (not << f)
+
+
+{-| If the first argument returns `Just a`, the given `Procedure`s are evaluated with the inner value `a`; otherwise returns `none`.
+-}
+withMaybe : (memory -> Maybe a) -> (a -> List (Procedure memory event)) -> Procedure memory event
+withMaybe f g =
+    withMemory <|
+        \memory _ ->
+            case f memory of
+                Nothing ->
+                    []
+
+                Just a ->
+                    g a
 
 
 
