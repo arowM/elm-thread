@@ -15,6 +15,7 @@ module Thread.Lifter exposing
     , modifyAndThen
     , when
     , unless
+    , withMaybe
     , withMemory
     )
 
@@ -43,6 +44,7 @@ module Thread.Lifter exposing
 @docs modifyAndThen
 @docs when
 @docs unless
+@docs withMaybe
 @docs withMemory
 
 -}
@@ -226,6 +228,20 @@ unless l f =
 
                 Just b ->
                     f b
+        )
+
+
+{-| Lifter version of `withMaybe`.
+
+It returns `none` if the `get` of the given `Lifter` returns `Nothing` for current memory `a`.
+
+-}
+withMaybe : Lifter a b -> (b -> Maybe c) -> (c -> List (Procedure a event)) -> Procedure a event
+withMaybe l f =
+    Procedure.withMaybe
+        (\a ->
+            l.get a
+                |> Maybe.andThen f
         )
 
 
