@@ -214,6 +214,9 @@ suite =
                     { cmds = []
                     , log =
                         [ log mainThreadId <| "sendEvent"
+                        , log sendEventThreadId <| "before async: " ++ ThreadId.toString sendEventThreadId
+                        , log mainThreadId <| "after async"
+                        , log sendEventThreadId <| "sendEventProcedure"
                         , log mainThreadId <| "Received event from child thread: send from child."
                         , log sendEventThreadId <| "Propagated from parent: send from child."
                         ]
@@ -732,7 +735,10 @@ sampleProcedure tid =
 
         -- sendEvent
         , clear "sendEvent"
-        , Internal.async <| sendEventProcedure tid
+        , Internal.async
+            (\aid -> putLog ("before async: " ++ ThreadId.toString aid))
+            (sendEventProcedure tid)
+        , putLog "after async"
         , Internal.await <|
             \event _ ->
                 case event of
@@ -943,7 +949,7 @@ childProcedure tid =
                         Just <|
                             Internal.batch
                                 [ putParentLog <| "Received InheritedEvent in forked thread: " ++ str
-                                , Internal.async <| \_ -> asyncProcedure
+                                , Internal.async (\_ -> Internal.none) <| \_ -> asyncProcedure
                                 ]
 
                     _ ->
@@ -1019,7 +1025,8 @@ sendEventProcedure : ThreadId -> ThreadId -> Procedure Cmd Memory Event
 sendEventProcedure parentTid _ =
     Internal.batch
         -- sendEvent
-        [ Internal.send parentTid (Event1 "send from child")
+        [ putLog "sendEventProcedure"
+        , Internal.send parentTid (Event1 "send from child")
         , Internal.await <|
             \event _ ->
                 case event of

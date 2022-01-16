@@ -147,17 +147,21 @@ async :
     -> (Lifter memory a -> Block memory event)
     -> Procedure memory event
 async lifter def f =
-    Procedure.async <|
-        \tid ->
-            [ Procedure.modify <|
-                \memory ->
-                    case lifter.get memory of
-                        Just old ->
-                            lifter.set (assign tid def old) memory
+    Procedure.asyncWith
+        { preprocess =
+            \tid ->
+                [ Procedure.modify <|
+                    \memory ->
+                        case lifter.get memory of
+                            Just old ->
+                                lifter.set (assign tid def old) memory
 
-                        Nothing ->
-                            memory
-            , Procedure.addFinalizer <|
+                            Nothing ->
+                                memory
+                ]
+        }
+        (\tid ->
+            [ Procedure.addFinalizer <|
                 \_ ->
                     [ Procedure.modify <|
                         \memory ->
@@ -187,6 +191,7 @@ async lifter def f =
                 tid
                 |> Procedure.batch
             ]
+        )
 
 
 {-| Run a child `Block` by [`Thread.Procedure.block`](https://package.elm-lang.org/packages/arowM/elm-thread/latest/Thread-Procedure#block), assign a local memory for the thread, and free the local memory when the thread is end.

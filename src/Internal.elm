@@ -330,20 +330,21 @@ fromProcedure_ myThreadId state parents procs =
                 , finally = noProcedure
                 }
 
-        (Async f) :: ps2 ->
+        (Async p f) :: ps2 ->
             let
                 asyncedThreadId =
                     state.nextThreadId
 
                 newState =
                     { state | nextThreadId = ThreadId.inc state.nextThreadId }
-
-                asynced s =
-                    f asyncedThreadId
-                        |> fromProcedure_ asyncedThreadId s (myThreadId :: parents)
             in
-            fromProcedure_ myThreadId newState parents ps2
-                |> andAsync asynced
+            fromProcedure_ asyncedThreadId newState (myThreadId :: parents) (p asyncedThreadId)
+                |> andThen
+                    (\s -> fromProcedure_ myThreadId s parents ps2)
+                |> andAsync
+                    (\s ->
+                        fromProcedure_ asyncedThreadId s (myThreadId :: parents) (f asyncedThreadId)
+                    )
 
         (Fork f) :: ps2 ->
             let
@@ -976,7 +977,10 @@ type Procedure_ cmd memory event
       -- Run concurrently in new thread, alive even when parent thread ends
     | Fork (ThreadId -> List (Procedure_ cmd memory event))
       -- Run concurrently in new thread, killed when parent thread ends
-    | Async (ThreadId -> List (Procedure_ cmd memory event))
+    | Async
+        (ThreadId -> List (Procedure_ cmd memory event))
+        -- Preprocess
+        (ThreadId -> List (Procedure_ cmd memory event))
     | Sync (List (ThreadId -> List (Procedure_ cmd memory event)))
     | Race (List (ThreadId -> List (Procedure_ cmd memory event)))
       -- Ignore subsequent `Procedure`s and run given `Procedure`s in current thread.
@@ -1057,11 +1061,16 @@ liftMemory_ lifter pb =
                     f tid
                         |> List.map (liftMemory_ lifter)
 
-        Async f ->
-            Async <|
-                \tid ->
+        Async p f ->
+            Async
+                (\tid ->
+                    p tid
+                        |> List.map (liftMemory_ lifter)
+                )
+                (\tid ->
                     f tid
                         |> List.map (liftMemory_ lifter)
+                )
 
         Sync fs ->
             Sync <|
@@ -1139,11 +1148,16 @@ liftEvent_ wrapper pb =
                     f tid
                         |> List.map (liftEvent_ wrapper)
 
-        Async f ->
-            Async <|
-                \tid ->
+        Async p f ->
+            Async
+                (\tid ->
+                    p tid
+                        |> List.map (liftEvent_ wrapper)
+                )
+                (\tid ->
                     f tid
                         |> List.map (liftEvent_ wrapper)
+                )
 
         Sync fs ->
             Sync <|
@@ -1226,11 +1240,16 @@ mapCmd_ set pb =
                     f tid
                         |> List.map (mapCmd_ set)
 
-        Async f ->
-            Async <|
-                \tid ->
+        Async p f ->
+            Async
+                (\tid ->
+                    p tid
+                        |> List.map (mapCmd_ set)
+                )
+                (\tid ->
                     f tid
                         |> List.map (mapCmd_ set)
+                )
 
         Sync fs ->
             Sync <|
@@ -1306,13 +1325,18 @@ fork f =
 {-| Run in asynchronous thread, which ends when the original thread ends.
 The first argument takes current `ThreadId`.
 -}
-async : (ThreadId -> Procedure cmd memory event) -> Procedure cmd memory event
-async f =
+async : (ThreadId -> Procedure cmd memory event) -> (ThreadId -> Procedure cmd memory event) -> Procedure cmd memory event
+async p f =
     Procedure
-        [ Async <|
-            \a ->
+        [ Async
+            (\a ->
+                p a
+                    |> (\(Procedure ps) -> ps)
+            )
+            (\a ->
                 f a
                     |> (\(Procedure ps) -> ps)
+            )
         ]
 
 

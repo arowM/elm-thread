@@ -8,6 +8,7 @@ module Thread.Procedure exposing
     , push
     , await
     , async
+    , asyncWith
     , block
     , sync
     , race
@@ -53,6 +54,7 @@ module Thread.Procedure exposing
 @docs push
 @docs await
 @docs async
+@docs asyncWith
 @docs block
 @docs sync
 @docs race
@@ -206,11 +208,37 @@ Infinite recursion by giving itself as the argument to `async` is not recommende
 async : Block memory event -> Procedure memory event
 async f =
     Procedure <|
-        Internal.async <|
-            \tid ->
+        Internal.async
+            (\_ -> Internal.none)
+            (\tid ->
                 f tid
                     |> batch
                     |> (\(Procedure proc) -> proc)
+            )
+
+
+{-| Like `async` but also takes options.
+
+  - preprocess: Bunch of `Procedure`s that immediately evaluated with asynced thread ID
+    Convenient for managing resources by asynced thread ID
+
+This is to be removed in public release.
+
+-}
+asyncWith : { preprocess : Block memory event } -> Block memory event -> Procedure memory event
+asyncWith { preprocess } f =
+    Procedure <|
+        Internal.async
+            (\tid ->
+                preprocess tid
+                    |> batch
+                    |> (\(Procedure proc) -> proc)
+            )
+            (\tid ->
+                f tid
+                    |> batch
+                    |> (\(Procedure proc) -> proc)
+            )
 
 
 {-| Construct a `Procedure` instance that wait for the given `Procedure` to be completed.
