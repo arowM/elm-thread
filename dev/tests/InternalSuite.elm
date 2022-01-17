@@ -15,8 +15,11 @@ suite =
         sendEventThreadId =
             ThreadId.inc mainThreadId
 
-        childThreadId =
+        asyncInAsyncThreadId =
             ThreadId.inc sendEventThreadId
+
+        childThreadId =
+            ThreadId.inc asyncInAsyncThreadId
 
         asyncInForkThreadId =
             ThreadId.inc childThreadId
@@ -219,9 +222,10 @@ suite =
                         , log sendEventThreadId <| "sendEventProcedure"
                         , log mainThreadId <| "Received event from child thread: send from child."
                         , log sendEventThreadId <| "Propagated from parent: send from child."
+                        , log asyncInAsyncThreadId <| "Async in async"
                         ]
                     , childLog = []
-                    , nextThreadId = ThreadId.inc sendEventThreadId
+                    , nextThreadId = ThreadId.inc asyncInAsyncThreadId
                     }
         , test "cleanup0" <|
             \_ ->
@@ -230,7 +234,7 @@ suite =
                     , log =
                         []
                     , childLog = []
-                    , nextThreadId = ThreadId.inc sendEventThreadId
+                    , nextThreadId = ThreadId.inc asyncInAsyncThreadId
                     }
         , test "receiveThreadEvent" <|
             \_ ->
@@ -240,7 +244,7 @@ suite =
                         [ log mainThreadId "Received Event2 message: 0"
                         ]
                     , childLog = []
-                    , nextThreadId = ThreadId.inc sendEventThreadId
+                    , nextThreadId = ThreadId.inc asyncInAsyncThreadId
                     }
         , test "ignoreUnconcernedThreadEvent" <|
             \_ ->
@@ -249,7 +253,7 @@ suite =
                     , log =
                         []
                     , childLog = []
-                    , nextThreadId = ThreadId.inc sendEventThreadId
+                    , nextThreadId = ThreadId.inc asyncInAsyncThreadId
                     }
         , test "ignoreAnotherThreadEvent" <|
             \_ ->
@@ -258,7 +262,7 @@ suite =
                     , log =
                         []
                     , childLog = []
-                    , nextThreadId = ThreadId.inc sendEventThreadId
+                    , nextThreadId = ThreadId.inc asyncInAsyncThreadId
                     }
         , test "awaitAgainAfterUnconcernedThreadEvent" <|
             \_ ->
@@ -268,7 +272,7 @@ suite =
                         [ log mainThreadId "Received Event2 message: 1"
                         ]
                     , childLog = []
-                    , nextThreadId = ThreadId.inc sendEventThreadId
+                    , nextThreadId = ThreadId.inc asyncInAsyncThreadId
                     }
         , test "awaitAgainAfterAnotherThreadEvent" <|
             \_ ->
@@ -278,7 +282,7 @@ suite =
                         [ log mainThreadId "Received Event2 message: 1"
                         ]
                     , childLog = []
-                    , nextThreadId = ThreadId.inc sendEventThreadId
+                    , nextThreadId = ThreadId.inc asyncInAsyncThreadId
                     }
         , test "receiveNextThreadEvent" <|
             \_ ->
@@ -1035,6 +1039,16 @@ sendEventProcedure parentTid _ =
 
                     _ ->
                         Nothing
+        , Internal.async
+            (\_ -> Internal.none)
+            (\_ ->
+                Internal.batch
+                    [ Internal.addFinalizer <|
+                        \_ ->
+                            putLog "Async in async"
+                    , Internal.await <| \_ _ -> Nothing
+                    ]
+            )
         ]
 
 
