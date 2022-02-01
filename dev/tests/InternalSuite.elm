@@ -1,7 +1,7 @@
 module InternalSuite exposing (suite)
 
 import Expect
-import Internal exposing (Lifter, Procedure)
+import Internal exposing (Lifter, Procedure_)
 import Internal.ThreadId as ThreadId exposing (ThreadId)
 import Test exposing (Test, describe, test)
 
@@ -639,7 +639,7 @@ memoryLifter =
 
 {-| Append a log message on the shared memory.
 -}
-putLog : String -> Procedure Cmd Memory Event
+putLog : String -> Procedure_ Cmd Memory Event
 putLog str =
     Internal.modify <|
         \tid memory ->
@@ -650,7 +650,7 @@ putLog str =
 
 {-| Append a child log message on the shared memory.
 -}
-putChildLog : String -> Procedure cmd ChildMemory event
+putChildLog : String -> Procedure_ cmd ChildMemory event
 putChildLog str =
     Internal.modify <|
         \tid memory ->
@@ -661,7 +661,7 @@ putChildLog str =
 
 {-| Append a parent log message on the shared memory.
 -}
-putParentLog : String -> Procedure cmd ChildMemory event
+putParentLog : String -> Procedure_ cmd ChildMemory event
 putParentLog str =
     Internal.modify <|
         \tid memory ->
@@ -672,7 +672,7 @@ putParentLog str =
 
 {-| Clear log messages saved on the shared memory.
 -}
-clearLog : Procedure Cmd Memory Event
+clearLog : Procedure_ Cmd Memory Event
 clearLog =
     Internal.modify <|
         \_ _ ->
@@ -728,7 +728,7 @@ type ChildCmd
 -- Sample procedure
 
 
-sampleProcedure : ThreadId -> Procedure Cmd Memory Event
+sampleProcedure : ThreadId -> Procedure_ Cmd Memory Event
 sampleProcedure tid =
     Internal.batch
         [ putLog "Start a thread"
@@ -917,7 +917,7 @@ sampleProcedure tid =
         ]
 
 
-clear : String -> Procedure Cmd Memory Event
+clear : String -> Procedure_ Cmd Memory Event
 clear str =
     Internal.await <|
         \event _ ->
@@ -933,7 +933,7 @@ clear str =
                     Nothing
 
 
-childProcedure : ThreadId -> Procedure ChildCmd ChildMemory ChildEvent
+childProcedure : ThreadId -> Procedure_ ChildCmd ChildMemory ChildEvent
 childProcedure tid =
     Internal.batch
         -- receiveNextThreadEvent - childThreadId
@@ -973,7 +973,7 @@ childProcedure tid =
         ]
 
 
-sampleProcedure2 : Procedure ChildCmd ChildMemory ChildEvent
+sampleProcedure2 : Procedure_ ChildCmd ChildMemory ChildEvent
 sampleProcedure2 =
     Internal.batch
         -- forkInFork - forkInForkThreadId
@@ -997,7 +997,7 @@ sampleProcedure2 =
         ]
 
 
-asyncProcedure : Procedure ChildCmd ChildMemory ChildEvent
+asyncProcedure : Procedure_ ChildCmd ChildMemory ChildEvent
 asyncProcedure =
     Internal.batch
         -- receiveChildEvent, - asyncInForkThreadId
@@ -1025,7 +1025,7 @@ asyncProcedure =
         ]
 
 
-sendEventProcedure : ThreadId -> ThreadId -> Procedure Cmd Memory Event
+sendEventProcedure : ThreadId -> ThreadId -> Procedure_ Cmd Memory Event
 sendEventProcedure parentTid _ =
     Internal.batch
         -- sendEvent
@@ -1052,7 +1052,7 @@ sendEventProcedure parentTid _ =
         ]
 
 
-sampleProcedure3 : ThreadId -> Procedure Cmd Memory Event
+sampleProcedure3 : ThreadId -> Procedure_ Cmd Memory Event
 sampleProcedure3 tid =
     Internal.batch
         -- forkInFork - sample3ThreadId1
@@ -1076,7 +1076,7 @@ sampleProcedure3 tid =
         ]
 
 
-sampleProcedure4 : Procedure Cmd Memory Event
+sampleProcedure4 : Procedure_ Cmd Memory Event
 sampleProcedure4 =
     Internal.batch
         -- syncThreads - sample4ThreadId1
@@ -1125,7 +1125,7 @@ sampleProcedure4 =
         ]
 
 
-sampleProcedure5 : ThreadId -> Procedure Cmd Memory Event
+sampleProcedure5 : ThreadId -> Procedure_ Cmd Memory Event
 sampleProcedure5 _ =
     Internal.batch
         -- syncThreads
@@ -1145,7 +1145,7 @@ sampleProcedure5 _ =
         ]
 
 
-sampleProcedure3Infinite : ThreadId -> Procedure Cmd Memory Event
+sampleProcedure3Infinite : ThreadId -> Procedure_ Cmd Memory Event
 sampleProcedure3Infinite tid =
     Internal.batch
         [ sampleProcedure3 tid

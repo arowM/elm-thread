@@ -9,6 +9,7 @@ module Internal exposing
     , mapMsg
     , setTarget
     , Procedure
+    , Procedure_
     , none
     , batch
     , modify
@@ -49,6 +50,7 @@ module Internal exposing
 # Procedure
 
 @docs Procedure
+@docs Procedure_
 @docs none
 @docs batch
 @docs modify
@@ -142,8 +144,8 @@ run msg (Thread t) =
 
 
 {-| -}
-fromProcedure : memory -> Procedure cmd memory event -> Thread cmd memory event
-fromProcedure initialMemory (Procedure ps) =
+fromProcedure : memory -> Procedure_ cmd memory event -> Thread cmd memory event
+fromProcedure initialMemory (Procedure_ ps) =
     fromProcedure_ ThreadId.init (initialState initialMemory) [] ps
         |> toThread
 
@@ -268,7 +270,7 @@ noProcedure s =
         }
 
 
-fromProcedure_ : ThreadId -> ThreadState memory -> List ThreadId -> List (Procedure_ cmd memory event) -> FromProcedure cmd memory event
+fromProcedure_ : ThreadId -> ThreadState memory -> List ThreadId -> List (ProcedureItem cmd memory event) -> FromProcedure cmd memory event
 fromProcedure_ myThreadId state parents procs =
     case procs of
         [] ->
@@ -289,19 +291,6 @@ fromProcedure_ myThreadId state parents procs =
                     }
             in
             fromProcedure_ myThreadId newState parents (ps1 ++ ps2)
-                |> prependCmds (List.map (\c -> ( myThreadId, c )) cmds1)
-
-        (Do f) :: ps2 ->
-            let
-                ( memory1, cmds1 ) =
-                    f myThreadId state.memory
-
-                newState =
-                    { state
-                        | memory = memory1
-                    }
-            in
-            fromProcedure_ myThreadId newState parents ps2
                 |> prependCmds (List.map (\c -> ( myThreadId, c )) cmds1)
 
         (AddFinalizer f) :: ps2 ->
@@ -663,7 +652,7 @@ andIndependently =
     andForks
 
 
-fromProcDeps : ThreadState memory -> List ThreadId -> List (ThreadId -> List (Procedure_ cmd memory event)) -> FromProcedure cmd memory event
+fromProcDeps : ThreadState memory -> List ThreadId -> List (ThreadId -> List (ProcedureItem cmd memory event)) -> FromProcedure cmd memory event
 fromProcDeps state parents fs =
     List.foldl
         (\f acc ->
@@ -790,7 +779,7 @@ andNextDep f fp =
                         }
 
 
-fromProcRaceDeps : ThreadState memory -> List ThreadId -> List (ThreadId -> List (Procedure_ cmd memory event)) -> FromProcedure cmd memory event
+fromProcRaceDeps : ThreadState memory -> List ThreadId -> List (ThreadId -> List (ProcedureItem cmd memory event)) -> FromProcedure cmd memory event
 fromProcRaceDeps state parents fs =
     case fs of
         [] ->
@@ -952,39 +941,43 @@ setTarget =
   - event: Message that only affect the certain threads
 
 -}
-type Procedure cmd memory event
-    = Procedure (List (Procedure_ cmd memory event))
-
-
-{-| -}
-none : Procedure cmd memory event
-none =
-    Procedure []
-
-
-{-| -}
-batch : List (Procedure cmd memory event) -> Procedure cmd memory event
-batch procs =
-    List.concatMap (\(Procedure ps) -> ps) procs
-        |> Procedure
-
-
 type Procedure_ cmd memory event
-    = DoAndThen (ThreadId -> memory -> ( memory, List cmd, List (Procedure_ cmd memory event) ))
-    | Do (ThreadId -> memory -> ( memory, List cmd ))
-    | AddFinalizer (ThreadId -> List (Procedure_ cmd memory event))
-    | Await (List ThreadId -> Msg event -> memory -> Maybe (List (Procedure_ cmd memory event)))
+    = Procedure_ (List (ProcedureItem cmd memory event))
+
+
+{-| -}
+type alias Procedure memory event =
+    Procedure_ (Cmd (Msg event)) memory event
+
+
+{-| -}
+none : Procedure_ cmd memory event
+none =
+    Procedure_ []
+
+
+{-| -}
+batch : List (Procedure_ cmd memory event) -> Procedure_ cmd memory event
+batch procs =
+    List.concatMap (\(Procedure_ ps) -> ps) procs
+        |> Procedure_
+
+
+type ProcedureItem cmd memory event
+    = DoAndThen (ThreadId -> memory -> ( memory, List cmd, List (ProcedureItem cmd memory event) ))
+    | AddFinalizer (ThreadId -> List (ProcedureItem cmd memory event))
+    | Await (List ThreadId -> Msg event -> memory -> Maybe (List (ProcedureItem cmd memory event)))
       -- Run concurrently in new thread, alive even when parent thread ends
-    | Fork (ThreadId -> List (Procedure_ cmd memory event))
+    | Fork (ThreadId -> List (ProcedureItem cmd memory event))
       -- Run concurrently in new thread, killed when parent thread ends
     | Async
-        (ThreadId -> List (Procedure_ cmd memory event))
+        (ThreadId -> List (ProcedureItem cmd memory event))
         -- Preprocess
-        (ThreadId -> List (Procedure_ cmd memory event))
-    | Sync (List (ThreadId -> List (Procedure_ cmd memory event)))
-    | Race (List (ThreadId -> List (Procedure_ cmd memory event)))
+        (ThreadId -> List (ProcedureItem cmd memory event))
+    | Sync (List (ThreadId -> List (ProcedureItem cmd memory event)))
+    | Race (List (ThreadId -> List (ProcedureItem cmd memory event)))
       -- Ignore subsequent `Procedure`s and run given `Procedure`s in current thread.
-    | Turn (ThreadId -> List (Procedure_ cmd memory event))
+    | Turn (ThreadId -> List (ProcedureItem cmd memory event))
     | Issue (List (Msg event))
     | Quit
 
@@ -998,12 +991,12 @@ type alias Lifter a b =
 
 
 {-| -}
-liftMemory : Lifter a b -> Procedure cmd b event -> Procedure cmd a event
-liftMemory lifter (Procedure ps) =
-    Procedure <| List.map (liftMemory_ lifter) ps
+liftMemory : Lifter a b -> Procedure_ cmd b event -> Procedure_ cmd a event
+liftMemory lifter (Procedure_ ps) =
+    Procedure_ <| List.map (liftMemory_ lifter) ps
 
 
-liftMemory_ : Lifter a b -> Procedure_ cmd b event -> Procedure_ cmd a event
+liftMemory_ : Lifter a b -> ProcedureItem cmd b event -> ProcedureItem cmd a event
 liftMemory_ lifter pb =
     case pb of
         DoAndThen f ->
@@ -1021,22 +1014,6 @@ liftMemory_ lifter pb =
                             ( lifter.set b a
                             , cmds
                             , List.map (liftMemory_ lifter) ps
-                            )
-
-        Do f ->
-            Do <|
-                \tid a ->
-                    case lifter.get a of
-                        Nothing ->
-                            ( a, [] )
-
-                        Just old ->
-                            let
-                                ( b, cmds ) =
-                                    f tid old
-                            in
-                            ( lifter.set b a
-                            , cmds
                             )
 
         AddFinalizer f ->
@@ -1094,10 +1071,10 @@ liftMemory_ lifter pb =
 
 
 {-| -}
-liftEvent : Wrapper a b -> Procedure cmd memory b -> Procedure cmd memory a
-liftEvent wrapper (Procedure ps) =
+liftEvent : Wrapper a b -> Procedure_ cmd memory b -> Procedure_ cmd memory a
+liftEvent wrapper (Procedure_ ps) =
     List.map (liftEvent_ wrapper) ps
-        |> Procedure
+        |> Procedure_
 
 
 {-| Use to convert local event types.
@@ -1109,7 +1086,7 @@ type alias Wrapper a b =
 
 
 {-| -}
-liftEvent_ : Wrapper a b -> Procedure_ cmd memory b -> Procedure_ cmd memory a
+liftEvent_ : Wrapper a b -> ProcedureItem cmd memory b -> ProcedureItem cmd memory a
 liftEvent_ wrapper pb =
     case pb of
         DoAndThen f ->
@@ -1123,9 +1100,6 @@ liftEvent_ wrapper pb =
                     , cmds
                     , List.map (liftEvent_ wrapper) ps
                     )
-
-        Do f ->
-            Do f
 
         AddFinalizer f ->
             AddFinalizer <|
@@ -1190,14 +1164,14 @@ mapMaybeEvent f msg =
 
 
 {-| -}
-mapCmd : (a -> b) -> Procedure a memory event -> Procedure b memory event
-mapCmd set (Procedure ps) =
+mapCmd : (a -> b) -> Procedure_ a memory event -> Procedure_ b memory event
+mapCmd set (Procedure_ ps) =
     List.map (mapCmd_ set) ps
-        |> Procedure
+        |> Procedure_
 
 
 {-| -}
-mapCmd_ : (a -> b) -> Procedure_ a memory event -> Procedure_ b memory event
+mapCmd_ : (a -> b) -> ProcedureItem a memory event -> ProcedureItem b memory event
 mapCmd_ set pb =
     case pb of
         DoAndThen f ->
@@ -1210,17 +1184,6 @@ mapCmd_ set pb =
                     ( memory2
                     , List.map set cmds
                     , List.map (mapCmd_ set) ps
-                    )
-
-        Do f ->
-            Do <|
-                \tid memory ->
-                    let
-                        ( memory2, cmds ) =
-                            f tid memory
-                    in
-                    ( memory2
-                    , List.map set cmds
                     )
 
         AddFinalizer f ->
@@ -1274,27 +1237,27 @@ mapCmd_ set pb =
 {-| Modifies the shared memory state.
 The first argument takes current `ThreadId` and returns a modify function.
 -}
-modify : (ThreadId -> memory -> memory) -> Procedure cmd memory event
+modify : (ThreadId -> memory -> memory) -> Procedure_ cmd memory event
 modify f =
-    Procedure
-        [ Do <| \tid memory -> ( f tid memory, [] )
+    Procedure_
+        [ DoAndThen <| \tid memory -> ( f tid memory, [], [] )
         ]
 
 
 {-| Push new `Cmd`.
 The first argument takes current `ThreadId` and the shared memory state.
 -}
-push : (ThreadId -> memory -> List cmd) -> Procedure cmd memory event
+push : (ThreadId -> memory -> List cmd) -> Procedure_ cmd memory event
 push f =
-    Procedure
-        [ Do <| \tid memory -> ( memory, f tid memory )
+    Procedure_
+        [ DoAndThen <| \tid memory -> ( memory, f tid memory, [] )
         ]
 
 
 {-| -}
-await : (event -> memory -> Maybe (Procedure cmd memory event)) -> Procedure cmd memory event
+await : (event -> memory -> Maybe (Procedure_ cmd memory event)) -> Procedure_ cmd memory event
 await f =
-    Procedure
+    Procedure_
         [ Await <|
             \tids msg memory ->
                 case msg of
@@ -1302,7 +1265,7 @@ await f =
                         if List.member tid tids then
                             f event memory
                                 |> Maybe.map
-                                    (\(Procedure ps) -> ps)
+                                    (\(Procedure_ ps) -> ps)
 
                         else
                             Nothing
@@ -1312,44 +1275,44 @@ await f =
 {-| Run in independent thread, which alives even when the original thread ends.
 The first argument takes current `ThreadId`.
 -}
-fork : (ThreadId -> Procedure cmd memory event) -> Procedure cmd memory event
+fork : (ThreadId -> Procedure_ cmd memory event) -> Procedure_ cmd memory event
 fork f =
-    Procedure
+    Procedure_
         [ Fork <|
             \a ->
                 f a
-                    |> (\(Procedure ps) -> ps)
+                    |> (\(Procedure_ ps) -> ps)
         ]
 
 
 {-| Run in asynchronous thread, which ends when the original thread ends.
 The first argument takes current `ThreadId`.
 -}
-async : (ThreadId -> Procedure cmd memory event) -> (ThreadId -> Procedure cmd memory event) -> Procedure cmd memory event
+async : (ThreadId -> Procedure_ cmd memory event) -> (ThreadId -> Procedure_ cmd memory event) -> Procedure_ cmd memory event
 async p f =
-    Procedure
+    Procedure_
         [ Async
             (\a ->
                 p a
-                    |> (\(Procedure ps) -> ps)
+                    |> (\(Procedure_ ps) -> ps)
             )
             (\a ->
                 f a
-                    |> (\(Procedure ps) -> ps)
+                    |> (\(Procedure_ ps) -> ps)
             )
         ]
 
 
 {-| Blocks thread till all the given threads are complete.
 -}
-sync : List (ThreadId -> Procedure cmd memory event) -> Procedure cmd memory event
+sync : List (ThreadId -> Procedure_ cmd memory event) -> Procedure_ cmd memory event
 sync fs =
-    Procedure
+    Procedure_
         [ Sync <|
             List.map
                 (\f tid ->
                     let
-                        (Procedure ps) =
+                        (Procedure_ ps) =
                             f tid
                     in
                     ps
@@ -1361,14 +1324,14 @@ sync fs =
 {-| Blocks thread till one the given threads is complete.
 It cancels any other given threads in progress.
 -}
-race : List (ThreadId -> Procedure cmd memory event) -> Procedure cmd memory event
+race : List (ThreadId -> Procedure_ cmd memory event) -> Procedure_ cmd memory event
 race fs =
-    Procedure
+    Procedure_
         [ Race <|
             List.map
                 (\f tid ->
                     let
-                        (Procedure ps) =
+                        (Procedure_ ps) =
                             f tid
                     in
                     ps
@@ -1378,28 +1341,28 @@ race fs =
 
 
 {-| -}
-send : ThreadId -> event -> Procedure cmd memory event
+send : ThreadId -> event -> Procedure_ cmd memory event
 send tid event =
-    Procedure [ Issue [ ThreadEvent tid event ] ]
+    Procedure_ [ Issue [ ThreadEvent tid event ] ]
 
 
 {-| -}
-quit : Procedure cmd memory event
+quit : Procedure_ cmd memory event
 quit =
-    Procedure [ Quit ]
+    Procedure_ [ Quit ]
 
 
 {-| -}
-modifyAndThen : (ThreadId -> memory -> ( memory, x )) -> (ThreadId -> x -> Procedure cmd memory event) -> Procedure cmd memory event
+modifyAndThen : (ThreadId -> memory -> ( memory, x )) -> (ThreadId -> x -> Procedure_ cmd memory event) -> Procedure_ cmd memory event
 modifyAndThen f g =
-    Procedure
+    Procedure_
         [ DoAndThen <|
             \tid memory ->
                 let
                     ( memory2, x ) =
                         f tid memory
 
-                    (Procedure ps) =
+                    (Procedure_ ps) =
                         g tid x
                 in
                 ( memory2, [], ps )
@@ -1407,13 +1370,13 @@ modifyAndThen f g =
 
 
 {-| -}
-addFinalizer : (ThreadId -> Procedure cmd memory event) -> Procedure cmd memory event
+addFinalizer : (ThreadId -> Procedure_ cmd memory event) -> Procedure_ cmd memory event
 addFinalizer f =
-    Procedure
+    Procedure_
         [ AddFinalizer <|
             \tid ->
                 let
-                    (Procedure ps) =
+                    (Procedure_ ps) =
                         f tid
                 in
                 ps
@@ -1421,13 +1384,13 @@ addFinalizer f =
 
 
 {-| -}
-jump : (ThreadId -> Procedure cmd memory event) -> Procedure cmd memory event
+jump : (ThreadId -> Procedure_ cmd memory event) -> Procedure_ cmd memory event
 jump f =
-    Procedure
+    Procedure_
         [ Turn <|
             \x ->
                 let
-                    (Procedure ps) =
+                    (Procedure_ ps) =
                         f x
                 in
                 ps

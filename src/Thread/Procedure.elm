@@ -114,24 +114,22 @@ import Thread.Wrapper exposing (Wrapper)
   - event: Message generated and received only within specific threads.
 
 -}
-type Procedure memory event
-    = Procedure (Internal.Procedure (Cmd (Internal.Msg event)) memory event)
+type alias Procedure memory event =
+    Internal.Procedure memory event
 
 
 {-| Construct a `Procedure` instance that do nothing.
 -}
 none : Procedure memory event
 none =
-    Procedure Internal.none
+    Internal.none
 
 
 {-| Batch `Procedure`s together. The elements are evaluated in order.
 -}
 batch : List (Procedure memory event) -> Procedure memory event
-batch procs =
-    List.map (\(Procedure proc) -> proc) procs
-        |> Internal.batch
-        |> Procedure
+batch =
+    Internal.batch
 
 
 {-| Reexposing `Thread.ThreadId.ThreadId` for convenience.
@@ -153,22 +151,20 @@ Note that the update operation, passed as the first argument, is performed atomi
 -}
 modify : (memory -> memory) -> Procedure memory event
 modify f =
-    Procedure <|
-        Internal.modify <|
-            \_ memory ->
-                f memory
+    Internal.modify <|
+        \_ memory ->
+            f memory
 
 
 {-| Construct a `Procedure` instance that issues a `Cmd` directed to the thread on which this function is evaluated.
 -}
 push : (memory -> Cmd event) -> Procedure memory event
 push f =
-    Procedure <|
-        Internal.push <|
-            \tid memory ->
-                f memory
-                    |> Cmd.map (Internal.setTarget tid)
-                    |> List.singleton
+    Internal.push <|
+        \tid memory ->
+            f memory
+                |> Cmd.map (Internal.setTarget tid)
+                |> List.singleton
 
 
 {-| Construct a `Procedure` instance that awaits the local events for the thread.
@@ -185,17 +181,14 @@ Note3: `push`s written before an `await` will not necessarily cause local events
 -}
 await : (event -> memory -> List (Procedure memory event)) -> Procedure memory event
 await f =
-    Procedure <|
-        Internal.await <|
-            \local memory ->
-                case f local memory of
-                    [] ->
-                        Nothing
+    Internal.await <|
+        \local memory ->
+            case f local memory of
+                [] ->
+                    Nothing
 
-                    ps ->
-                        List.map (\(Procedure proc) -> proc) ps
-                            |> Internal.batch
-                            |> Just
+                ps ->
+                    Just <| Internal.batch ps
 
 
 {-| Construct a `Procedure` instance that evaluates the given `Block` in the asynchronous thread.
@@ -207,14 +200,12 @@ Infinite recursion by giving itself as the argument to `async` is not recommende
 -}
 async : Block memory event -> Procedure memory event
 async f =
-    Procedure <|
-        Internal.async
-            (\_ -> Internal.none)
-            (\tid ->
-                f tid
-                    |> batch
-                    |> (\(Procedure proc) -> proc)
-            )
+    Internal.async
+        (\_ -> Internal.none)
+        (\tid ->
+            f tid
+                |> batch
+        )
 
 
 {-| Like `async` but also takes options.
@@ -227,18 +218,15 @@ This is to be removed in public release.
 -}
 asyncWith : { preprocess : Block memory event } -> Block memory event -> Procedure memory event
 asyncWith { preprocess } f =
-    Procedure <|
-        Internal.async
-            (\tid ->
-                preprocess tid
-                    |> batch
-                    |> (\(Procedure proc) -> proc)
-            )
-            (\tid ->
-                f tid
-                    |> batch
-                    |> (\(Procedure proc) -> proc)
-            )
+    Internal.async
+        (\tid ->
+            preprocess tid
+                |> batch
+        )
+        (\tid ->
+            f tid
+                |> batch
+        )
 
 
 {-| Construct a `Procedure` instance that wait for the given `Procedure` to be completed.
@@ -285,16 +273,10 @@ sync : List (Block memory event) -> Procedure memory event
 sync fs =
     List.map
         (\f tid ->
-            let
-                (Procedure proc) =
-                    f tid
-                        |> batch
-            in
-            proc
+            batch <| f tid
         )
         fs
         |> Internal.sync
-        |> Procedure
 
 
 {-| Construct a `Procedure` instance that wait for one of the given `Block`s to be completed.
@@ -308,16 +290,10 @@ race : List (Block memory event) -> Procedure memory event
 race fs =
     List.map
         (\f tid ->
-            let
-                (Procedure proc) =
-                    f tid
-                        |> batch
-            in
-            proc
+            batch <| f tid
         )
         fs
         |> Internal.race
-        |> Procedure
 
 
 {-| Quit the thread immediately.
@@ -327,7 +303,7 @@ Subsequent `Procedure`s are not evaluated and are discarded.
 -}
 quit : Procedure memory event
 quit =
-    Procedure Internal.quit
+    Internal.quit
 
 
 {-| For a thread running this `Procedure`, add a finalizer: `Procedure`s to be evaluated when the thread is terminated, such as when the last `Procedure` for the thread has finished to be evaluated, or when the thread is interrupted by `quit` or `race`, or the parent thread ends by such reasons.
@@ -337,14 +313,9 @@ Since `addFinally` **appends** the finalizer, it is especially important to note
 -}
 addFinalizer : Block memory event -> Procedure memory event
 addFinalizer f =
-    Procedure <|
-        Internal.addFinalizer <|
-            \tid ->
-                let
-                    (Procedure proc) =
-                        f tid |> batch
-                in
-                proc
+    Internal.addFinalizer <|
+        \tid ->
+            batch <| f tid
 
 
 {-| Modify the shared memory atomically, creating the intermediate value in the process, and pass the value to the another `Block` in the original thread.
@@ -354,12 +325,10 @@ The intermediate value is supposed to be the information of the certain resource
 -}
 modifyAndThen : (memory -> ( memory, x )) -> (x -> Block memory event) -> Procedure memory event
 modifyAndThen f g =
-    Procedure <|
-        Internal.modifyAndThen (\_ memory -> f memory) <|
-            \tid x ->
-                g x tid
-                    |> batch
-                    |> (\(Procedure proc) -> proc)
+    Internal.modifyAndThen (\_ memory -> f memory) <|
+        \tid x ->
+            g x tid
+                |> batch
 
 
 {-| Ignore subsequent `Procedure`s, and evaluate given `Block` in the current thread. It is convenient for following two situations.
@@ -443,12 +412,10 @@ It appears to be nice, but it does not work as intended. Actually, the above `Bl
 -}
 jump : Block memory event -> Procedure memory event
 jump f =
-    Procedure <|
-        Internal.jump <|
-            \tid ->
-                f tid
-                    |> batch
-                    |> (\(Procedure proc) -> proc)
+    Internal.jump <|
+        \tid ->
+            f tid
+                |> batch
 
 
 {-| Evaluate another `Block`, provided as a first argument, with new `ThreadId` until the second argument returns non-empty list.
@@ -523,7 +490,7 @@ extractMemory (Model model) =
 init : memory -> Block memory event -> ( Model memory event, Cmd (Msg event) )
 init memory f =
     let
-        (Procedure proc) =
+        proc =
             f initThreadId |> batch
 
         thread : Internal.Thread (Cmd (Internal.Msg event)) memory event
@@ -655,9 +622,8 @@ If you want to create a thread that allocates a dedicated memory area of type `b
 
 -}
 lift : Lifter a b -> Procedure b event -> Procedure a event
-lift lifter (Procedure proc) =
+lift lifter proc =
     Internal.liftMemory lifter proc
-        |> Procedure
 
 
 {-| `Block` version of `liftMemory`.
@@ -674,10 +640,9 @@ liftBlock lifter f tid =
 {-| Wrap the event type of the given `Procedure`.
 -}
 wrap : Wrapper a b -> Procedure memory b -> Procedure memory a
-wrap wrapper (Procedure proc) =
+wrap wrapper proc =
     Internal.mapCmd (Cmd.map (Internal.mapMsg wrapper.wrap)) proc
         |> Internal.liftEvent wrapper
-        |> Procedure
 
 
 {-| Wrap the event type of the given `Block`.
