@@ -11,7 +11,7 @@ when inside the directory containing this file.
 
 -}
 
-import Review.Rule exposing (Rule)
+import Review.Rule as Rule exposing (Rule)
 import NoAlways
 import NoDebug.Log
 import NoDebug.TodoOrToString
@@ -42,7 +42,7 @@ config =
     , NoUnused.CustomTypeConstructorArgs.rule
     , NoUnused.CustomTypeConstructors.rule []
     , NoUnused.Dependencies.rule
-    -- , NoUnused.Exports.rule
+    , NoUnused.Exports.rule
     , NoUnused.Modules.rule
     , NoUnused.Parameters.rule
     , NoUnused.Patterns.rule
@@ -50,3 +50,4 @@ config =
     , Simplify.defaults
         |> Simplify.rule
     ]
+        |> List.map (Rule.ignoreErrorsForDirectories [ "../src" ])

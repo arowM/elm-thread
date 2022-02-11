@@ -5,20 +5,17 @@ import Html.Attributes as Attributes exposing (style)
 import Html.Events as Events
 import Html.Events.Extra exposing (onChange)
 import Html.Keyed as Keyed
-import Thread.Browser as Browser exposing (Document, Program)
-import Thread.Lifter as Lifter exposing (Lifter)
-import Thread.LocalMemory as LocalMemory exposing (LocalMemory)
-import Thread.Procedure as Procedure exposing (Block, Msg)
-import Thread.ThreadId as ThreadId exposing (ThreadId)
+import Procedure exposing (Document, Msg, Observer, Program, global)
+import Procedure.ObserverId as ObserverId exposing (ObserverId)
 
 
 main : Program () Memory Event
 main =
-    Browser.document
+    Procedure.document
         { init = init
         , procedures = procedures
         , view = view
-        , subscriptions = Browser.globalSubscriptions subscriptions
+        , subscriptions = subscriptions
         }
 
 
@@ -29,13 +26,13 @@ main =
 {-| The memory state shared by all threads.
 -}
 type alias Memory =
-    { cards : LocalMemory GoatCard
+    { cards : List ( ObserverId, GoatCard )
     }
 
 
 init : Memory
 init =
-    { cards = LocalMemory.init
+    { cards = []
     }
 
 
@@ -94,8 +91,8 @@ type Event
 -- View
 
 
-view : ThreadId -> Memory -> Document (Msg Event)
-view tid shared =
+view : Memory -> Document (Msg Event)
+view memory =
     { title = "Advanced sample app"
     , body =
         [ Html.div
@@ -110,7 +107,7 @@ view tid shared =
                     [ Attributes.type_ "button"
                     , Events.onClick
                         (ClickAddGoatCard
-                            |> Procedure.setTarget tid
+                            |> Procedure.publish
                         )
                     ]
                     [ Html.text "Add new card"
@@ -119,12 +116,11 @@ view tid shared =
             , Keyed.node "div"
                 [ style "padding" "0.4em"
                 ]
-                (LocalMemory.toList shared.cards
-                    |> List.reverse
+                (memory.cards
                     |> List.map
-                        (\( rid, goatCard ) ->
-                            ( ThreadId.toString rid
-                            , goatCardView rid goatCard
+                        (\( oid, goatCard ) ->
+                            ( ObserverId.toString oid
+                            , goatCardView oid goatCard
                             )
                         )
                 )
@@ -137,21 +133,21 @@ view tid shared =
 -- -- Goat card
 
 
-goatCardView : ThreadId -> GoatCard -> Html (Msg Event)
-goatCardView tid memory =
+goatCardView : ObserverId -> GoatCard -> Html (Msg Event)
+goatCardView oid memory =
     if memory.onEditing then
-        editModeGoatCardView tid memory.form
+        editModeGoatCardView oid memory.form
 
     else
-        savedModeGoatCardView tid memory.saved
+        savedModeGoatCardView oid memory.saved
 
 
 {-| -}
-editModeGoatCardView : ThreadId -> Form -> Html (Msg Event)
-editModeGoatCardView tid form =
+editModeGoatCardView : ObserverId -> Form -> Html (Msg Event)
+editModeGoatCardView oid form =
     let
         toMsg =
-            Procedure.setTarget tid
+            Procedure.issue oid
     in
     Html.div
         [ style "border" "solid #333 2px"
@@ -198,11 +194,11 @@ editModeGoatCardView tid form =
         ]
 
 
-savedModeGoatCardView : ThreadId -> Saved -> Html (Msg Event)
-savedModeGoatCardView tid saved =
+savedModeGoatCardView : ObserverId -> Saved -> Html (Msg Event)
+savedModeGoatCardView oid saved =
     let
         toMsg =
-            Procedure.setTarget tid
+            Procedure.issue oid
     in
     Html.div
         [ style "border" "solid #333 2px"
@@ -250,7 +246,7 @@ savedModeGoatCardView tid saved =
 -- Subsctiption
 
 
-subscriptions : Memory -> Sub Event
+subscriptions : Memory -> Sub (Msg Event)
 subscriptions _ =
     Sub.none
 
@@ -259,23 +255,32 @@ subscriptions _ =
 -- Procedure
 
 
-procedures : () -> Block Memory Event
-procedures () _ =
-    [ Procedure.await <|
+type alias Procedure =
+    Procedure.Procedure (Cmd (Msg Event)) Memory Event
+
+
+procedures : () -> List Procedure
+procedures () =
+    [ Procedure.await global <|
         \event _ ->
             case event of
                 ClickAddGoatCard ->
-                    [ LocalMemory.async
-                        { get = .cards >> Just
-                        , set = \cards shared -> { shared | cards = cards }
-                        }
-                        initGoatCard
-                        goatCardProcedures
+                    [ Procedure.async
+                        [ Procedure.append
+                            (global
+                                |> Procedure.dig
+                                    { get = .cards
+                                    , set = \c memory -> { memory | cards = c }
+                                    }
+                            )
+                            initGoatCard
+                            goatCardProcedures
+                        ]
                     ]
 
                 _ ->
                     []
-    , Procedure.jump <| procedures ()
+    , Procedure.jump global <| \_ -> procedures ()
     ]
 
 
@@ -285,54 +290,63 @@ procedures () _ =
 
 {-| This procedure is completed only when the remove button clicked.
 -}
-goatCardProcedures : Lifter Memory GoatCard -> Block Memory Event
-goatCardProcedures =
-    editModeGoatCardProcedures
+goatCardProcedures : Observer Memory GoatCard -> List Procedure
+goatCardProcedures card =
+    editModeGoatCardProcedures card
         { isInitial = True
         }
 
 
 {-| Procedure for editing mode.
 -}
-editModeGoatCardProcedures : { isInitial : Bool } -> Lifter Memory GoatCard -> Block Memory Event
-editModeGoatCardProcedures opt l _ =
-    [ Lifter.await l <|
+editModeGoatCardProcedures : Observer Memory GoatCard -> { isInitial : Bool } -> List Procedure
+editModeGoatCardProcedures card opt =
+    let
+        form : Observer Memory Form
+        form =
+            card
+                |> Procedure.dig
+                    { get = .form
+                    , set = \a memory -> { memory | form = a }
+                    }
+    in
+    [ Procedure.await card <|
         \event _ ->
             case event of
                 ClickSaveGoat ->
-                    [ Lifter.modify l <|
-                        \card ->
-                            { card
+                    [ Procedure.modify card <|
+                        \memory ->
+                            { memory
                                 | form =
                                     { name = ""
                                     }
                                 , saved =
-                                    { name = card.form.name
+                                    { name = memory.form.name
                                     }
                                 , onEditing = False
                             }
-                    , Lifter.jump l savedModeGoatCardProcedures
+                    , Procedure.jump global <| \_ -> savedModeGoatCardProcedures card
                     ]
 
                 ClickCancelGoat ->
-                    [ Lifter.when l
-                        (\_ -> opt.isInitial)
+                    [ Procedure.when opt.isInitial
                         [ Procedure.quit
                         ]
-                    , Lifter.modify l <|
-                        \card ->
-                            { card
+                    , Procedure.modify card <|
+                        \memory ->
+                            { memory
                                 | form =
                                     { name = ""
                                     }
                                 , onEditing = False
                             }
-                    , Lifter.jump l savedModeGoatCardProcedures
+                    , Procedure.jump global <| \_ -> savedModeGoatCardProcedures card
                     ]
 
                 ChangeGoatName str ->
-                    [ Lifter.modify l <| modifyForm <| \form -> { form | name = str }
-                    , Lifter.jump l <| editModeGoatCardProcedures opt
+                    [ Procedure.modify form <|
+                        \memory -> { memory | name = str }
+                    , Procedure.jump global <| \_ -> editModeGoatCardProcedures card opt
                     ]
 
                 _ ->
@@ -342,24 +356,26 @@ editModeGoatCardProcedures opt l _ =
 
 {-| Procedure for view mode.
 -}
-savedModeGoatCardProcedures : Lifter Memory GoatCard -> Block Memory Event
-savedModeGoatCardProcedures l _ =
-    [ Lifter.await l <|
+savedModeGoatCardProcedures : Observer Memory GoatCard -> List Procedure
+savedModeGoatCardProcedures card =
+    [ Procedure.await card <|
         \event _ ->
             case event of
                 ClickEditGoat ->
-                    [ Lifter.modify l <|
-                        \card ->
-                            { card
+                    [ Procedure.modify card <|
+                        \memory ->
+                            { memory
                                 | onEditing = True
                                 , form =
-                                    { name = card.saved.name
+                                    { name = memory.saved.name
                                     }
                             }
-                    , Lifter.jump l <|
-                        editModeGoatCardProcedures
-                            { isInitial = False
-                            }
+                    , Procedure.jump global <|
+                        \_ ->
+                            editModeGoatCardProcedures
+                                card
+                                { isInitial = False
+                                }
                     ]
 
                 ClickRemoveGoat ->
@@ -369,12 +385,3 @@ savedModeGoatCardProcedures l _ =
                 _ ->
                     []
     ]
-
-
-
--- -- Helper functions
-
-
-modifyForm : (Form -> Form) -> GoatCard -> GoatCard
-modifyForm f card =
-    { card | form = f card.form }

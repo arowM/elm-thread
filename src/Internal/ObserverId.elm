@@ -1,20 +1,20 @@
-module Internal.ThreadId exposing
-    ( ThreadId
+module Internal.ObserverId exposing
+    ( ObserverId
     , init
-    , inc
     , toString
     , decoder
     , toValue
+    , inc
     )
 
 {-|
 
-@docs ThreadId
+@docs ObserverId
 @docs init
-@docs inc
 @docs toString
 @docs decoder
 @docs toValue
+@docs inc
 
 -}
 
@@ -25,27 +25,27 @@ import Json.Encode as JE exposing (Value)
 
 {-| ID to determine to which thread a local message is addressed.
 -}
-type ThreadId
-    = ThreadId (List SafeInt)
+type ObserverId
+    = ObserverId (List SafeInt)
 
 
-{-| Initial value for `ThreadId`.
+{-| Initial value for `ObserverId`.
 -}
-init : ThreadId
+init : ObserverId
 init =
-    ThreadId [ SafeInt.minBound ]
+    ObserverId [ SafeInt.minBound ]
 
 
-{-| Increment `ThreadId`.
+{-| Next `ObserverId`.
 -}
-inc : ThreadId -> ThreadId
-inc (ThreadId ls) =
+inc : ObserverId -> ObserverId
+inc (ObserverId ls) =
     case incList ls of
         ( True, new ) ->
-            ThreadId <| SafeInt.minBound :: new
+            ObserverId <| SafeInt.minBound :: new
 
         ( False, new ) ->
-            ThreadId new
+            ObserverId new
 
 
 incList : List SafeInt -> ( Bool, List SafeInt )
@@ -63,10 +63,10 @@ incList =
 
 
 {-| Convert into `String`.
-Different `ThreadId`s will be converted to different strings, and the same `ThreadId`s will always be converted to the same string.
+Different `ObserverId`s will be converted to different strings, and the same `ObserverId`s will always be converted to the same string.
 -}
-toString : ThreadId -> String
-toString (ThreadId ls) =
+toString : ObserverId -> String
+toString (ObserverId ls) =
     List.map SafeInt.toString ls
         |> String.join "_"
         |> (\str -> "tid_" ++ str)
@@ -74,14 +74,14 @@ toString (ThreadId ls) =
 
 {-| JSON decoder.
 -}
-decoder : Decoder ThreadId
+decoder : Decoder ObserverId
 decoder =
     JD.list SafeInt.decoder
-        |> JD.map ThreadId
+        |> JD.map ObserverId
 
 
 {-| Convert into JSON `Value`.
 -}
-toValue : ThreadId -> Value
-toValue (ThreadId ls) =
+toValue : ObserverId -> Value
+toValue (ObserverId ls) =
     JE.list SafeInt.toValue ls

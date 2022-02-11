@@ -11,7 +11,7 @@ when inside the directory containing this file.
 
 -}
 
-import Review.Rule exposing (Rule)
+import Review.Rule as Rule exposing (Rule)
 import NoAlways
 import NoDebug.Log
 import NoDebug.TodoOrToString
@@ -36,10 +36,16 @@ config =
     , NoDebug.Log.rule
     , NoDebug.TodoOrToString.rule
     , NoExposingEverything.rule
-    , NoImportingEverything.rule []
+        |> Rule.ignoreErrorsForFiles
+            [ "src/Internal/Test.elm" ]
+    , NoImportingEverything.rule
+        [ "Internal.Test"
+        ]
     , NoMissingTypeAnnotation.rule
     -- , NoMissingTypeExpose.rule
     , NoUnused.CustomTypeConstructorArgs.rule
+        |> Rule.ignoreErrorsForFiles
+            [ "src/Internal/Test.elm" ]
     , NoUnused.CustomTypeConstructors.rule []
     , NoUnused.Dependencies.rule
     -- , NoUnused.Exports.rule

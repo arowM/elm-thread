@@ -1,9 +1,9 @@
-# elm-thread
+# elm-procedure
 
-[![Build Status](https://travis-ci.com/arowM/elm-thread.svg?branch=main)](https://travis-ci.com/arowM/elm-thread)  
-[Document](https://package.elm-lang.org/packages/arowM/elm-thread/latest/)  
-[Live demo](https://arowm.github.io/elm-thread/)  
-[Live demo (advanced)](https://arowm.github.io/elm-thread/advanced.html)  
+[![Build Status](https://app.travis-ci.com/arowM/elm-procedure.svg?branch=main)](https://app.travis-ci.com/arowM/elm-procedure)  
+[Document](https://package.elm-lang.org/packages/arowM/elm-procedure/latest/)  
+[Live demo](https://arowm.github.io/elm-procedure/)  
+[Live demo (advanced)](https://arowm.github.io/elm-procedure/advanced.html)  
 
 ![logo](https://user-images.githubusercontent.com/1481749/115139779-de382400-a06e-11eb-80e7-22af97774bfa.jpg)
 
@@ -11,29 +11,26 @@ Extend TEA so that chronological specifications can be translated verbatim into 
 
 # What is this for?
 
-With elm-thread, you can translate verbatim the specification of a UX-aware application into an implementation with the same look and feel.
+With elm-procedure, you can translate verbatim the specification of a UX-aware application into an implementation with the same look and feel.
 
 In a UX-aware application, it is natural to write the specification in chronological order.
 This is because application users make decisions about what to do next, based on their experience of their previous operations and the application's response to those operations.
 However, conventional TEA is not suitable for implementing such specifications: Every time the user interacts with the screen, you have to check the model in the `update` function and try hard to analyze "what time series did the user follow" to choose the next process. A lot of bugs are introduced in this kind of transformation work. The bad news is that these bugs are about the behaviour of the application, so you have to suffer through complex and difficult UI testing.
 
-With elm-thread, you can solve such drawbacks of TEA. As shown in the following example, it is possible to implement time series processing as it looks. What a magical library!
-
-**⚠️ WARNING: The purpose of the elm-thread is not to improve the performance of applications.**  
-Note the fact that I, the very author of elm-thread, insist it. Using the elm-thread for performance improvement is a bit like using Elm for developing backend apps: you can do it with tons of effort at your own risk, and don't bother anyone.
+With elm-procedure, you can solve such drawbacks of TEA. As shown in the following example, it is possible to implement time series processing as it looks. What a magical library!
 
 # Terms
 
 The terms referred to in this document are defined as follows:
 
 * Procedure: Definitions of the processes that the application will perform, in order.
-* Thread: Computational resources on which the Procedure is evaluated.
 * Memory: State shared between threads.
 * Event: Message generated and received only within specific threads.
+* Observer: TODO
 
 # A Quick Example
 
-The following code is an excerpt from [`sample/src/Main.elm`](https://github.com/arowM/elm-thread/tree/main/sample/src).
+The following code is an excerpt from [`sample/src/Main.elm`](https://github.com/arowM/elm-procedure/tree/main/sample/src).
 
 
 ```elm
@@ -66,7 +63,7 @@ procedures () _ =
 -- "Where did I come from?".
 -- What an annoying process!
 
--- With elm-thread, you just put the subsequent procedure
+-- With elm-procedure, you just put the subsequent procedure
 -- right below it.
 
     , requestInitialTime
@@ -251,7 +248,7 @@ subscriptions _ =
 
 # SPA Example
 
-The following code is an excerpt from [`sample/src/SPA.elm`](https://github.com/arowM/elm-thread/tree/main/sample/src).
+The following code is an excerpt from [`sample/src/SPA.elm`](https://github.com/arowM/elm-procedure/tree/main/sample/src).
 
 ```elm
 import SPA.Page.Home as Home

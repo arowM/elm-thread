@@ -1,7 +1,5 @@
 # Contribution Guide
 
-This library is made up of internal and public modules. The `dev` directory is for testing the internal modules.
-
 See below for various commands related to development.
 
 ## Install deps
@@ -19,7 +17,7 @@ $ npm run format
 ## Run doc server
 
 ```sh
-$ npm run start:prod
+$ npm start
 ```
 
 ## Build sample app

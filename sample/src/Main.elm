@@ -3,35 +3,35 @@ module Main exposing (Event, Memory, PageView, main)
 import Html
 import Html.Attributes as Attributes exposing (style)
 import Html.Events as Events
+import Procedure exposing (Document, Msg, Observer, Program, global)
+import Procedure.ObserverId exposing (ObserverId)
 import Process
 import Task
-import Thread.Browser as Browser exposing (Document, Program)
-import Thread.Procedure as Procedure exposing (Block, Procedure)
 import Time exposing (Posix)
 
 
 main : Program () Memory Event
 main =
-    Browser.document
+    Procedure.document
         { init = init
         , procedures = procedures
-        , view = Browser.globalDocument view
-        , subscriptions = Browser.globalSubscriptions subscriptions
+        , view = view
+        , subscriptions = subscriptions
         }
 
 
 {-| The memory state shared by all threads.
 -}
 type alias Memory =
-    { log : String
-    , page : PageView
+    { page : PageView
+    , log : String
     }
 
 
 init : Memory
 init =
-    { log = ""
-    , page = PageLoading
+    { page = PageLoading
+    , log = ""
     }
 
 
@@ -50,21 +50,21 @@ type Event
 
 type PageView
     = PageLoading
-    | PageHome PageHome_
+    | PageHome ( ObserverId, PageHome_ )
 
 
-view : Memory -> Document Event
+view : Memory -> Document (Msg Event)
 view memory =
     case memory.page of
         PageLoading ->
-            pageLoading
+            pageLoadingView
 
-        PageHome home ->
-            pageHome memory.log home
+        PageHome ( oid, home ) ->
+            pageHomeView oid memory.log home
 
 
-pageLoading : Document msg
-pageLoading =
+pageLoadingView : Document msg
+pageLoadingView =
     { title = "Sample application -- Loading"
     , body =
         [ Html.div
@@ -84,8 +84,12 @@ type alias PageHome_ =
     }
 
 
-pageHome : String -> PageHome_ -> Document Event
-pageHome log home =
+pageHomeView : ObserverId -> String -> PageHome_ -> Document (Msg Event)
+pageHomeView oid log home =
+    let
+        toMsg =
+            Procedure.issue oid
+    in
     { title = "Sample application -- Home"
     , body =
         [ Html.div
@@ -122,7 +126,7 @@ pageHome log home =
                     ]
                     [ Html.button
                         [ Attributes.type_ "button"
-                        , Events.onClick ClickActionButton
+                        , Events.onClick (toMsg ClickActionButton)
                         ]
                         [ Html.text "Action"
                         ]
@@ -156,43 +160,57 @@ formatTime zone time =
 -- Subsctiption
 
 
-subscriptions : Memory -> Sub Event
+subscriptions : Memory -> Sub (Msg Event)
 subscriptions _ =
-    Time.every 1000 ReceiveTick
+    Time.every 1000 (Procedure.publish << ReceiveTick)
 
 
 
 -- Procedure
 
 
-procedures : () -> Block Memory Event
-procedures () _ =
+type alias Procedure =
+    Procedure.Procedure (Cmd (Msg Event)) Memory Event
+
+
+procedures : () -> List Procedure
+procedures () =
     [ sleep 2000
     , requestInitialTime
-    , Procedure.await <|
+    , Procedure.await global <|
         \event _ ->
             case event of
                 ReceiveInitialTime ( zone, time ) ->
-                    [ setPageView <|
-                        PageHome
-                            { zone = zone
-                            , time = time
-                            , showActionButton = False
-                            }
+                    [ setPage
+                        { wrap = PageHome
+                        , unwrap = unwrapPageHome
+                        }
+                        { zone = zone
+                        , time = time
+                        , showActionButton = False
+                        }
+                        pageHomeProcedures
                     ]
 
                 _ ->
                     -- When returning empty list, `await` awaits events again.
                     []
-    , putLog "Asynchronous thread for clock..."
-    , Procedure.async clockProcedures
-    , modifyPageHome <| \home -> { home | showActionButton = True }
+    ]
+
+
+pageHomeProcedures : Observer Memory PageHome_ -> List Procedure
+pageHomeProcedures pageHome =
+    [ putLog "Asynchronous thread for clock..."
+    , Procedure.async <| clockProcedures pageHome
+    , Procedure.modify pageHome <|
+        \home -> { home | showActionButton = True }
     , putLog """Press "Action" button bellow."""
-    , Procedure.await <|
+    , Procedure.await pageHome <|
         \event _ ->
             case event of
                 ClickActionButton ->
-                    [ modifyPageHome <| \home -> { home | showActionButton = False }
+                    [ Procedure.modify pageHome <|
+                        \home -> { home | showActionButton = False }
                     , putLog """"Action" button has pressed."""
                     ]
 
@@ -200,16 +218,18 @@ procedures () _ =
                     []
     , Procedure.sync
         [ sleepProcedures1
+            |> Procedure.batch
         , sleepProcedures2
+            |> Procedure.batch
         ]
     , putLog "All child threads are complete."
-    , modifyPageHome <| \home -> { home | showActionButton = True }
+    , Procedure.modify pageHome <| \home -> { home | showActionButton = True }
     , putLog """Press "Action" button bellow."""
-    , Procedure.await <|
+    , Procedure.await pageHome <|
         \event _ ->
             case event of
                 ClickActionButton ->
-                    [ modifyPageHome <| \home -> { home | showActionButton = False }
+                    [ Procedure.modify pageHome <| \home -> { home | showActionButton = False }
                     , putLog """"Action" button has pressed."""
                     ]
 
@@ -217,42 +237,51 @@ procedures () _ =
                     []
     , Procedure.race
         [ sleepProcedures1
+            |> Procedure.batch
         , sleepProcedures2
+            |> Procedure.batch
         ]
     , putLog "One of the child threads is complete."
-
-    -- Avoid to quit, so that clockProcedures does not end.
-    , Procedure.await <| \_ _ -> []
     ]
 
 
-clockProcedures : Block Memory Event
-clockProcedures _ =
-    [ Procedure.await <|
+unwrapPageHome : PageView -> Maybe ( ObserverId, PageHome_ )
+unwrapPageHome pv =
+    case pv of
+        PageHome a ->
+            Just a
+
+        _ ->
+            Nothing
+
+
+clockProcedures : Observer Memory PageHome_ -> List Procedure
+clockProcedures pageHome =
+    [ Procedure.await global <|
         \event _ ->
             case event of
                 ReceiveTick time ->
-                    [ modifyPageHome <|
+                    [ Procedure.modify pageHome <|
                         \home ->
                             { home | time = time }
                     ]
 
                 _ ->
                     []
-    , Procedure.jump clockProcedures
+    , Procedure.jump global <| \_ -> clockProcedures pageHome
     ]
 
 
-sleepProcedures1 : Block Memory Event
-sleepProcedures1 _ =
+sleepProcedures1 : List Procedure
+sleepProcedures1 =
     [ putLog "Sleep 5 sec."
     , sleep 5000
     , putLog "Slept 5 sec."
     ]
 
 
-sleepProcedures2 : Block Memory Event
-sleepProcedures2 _ =
+sleepProcedures2 : List Procedure
+sleepProcedures2 =
     [ putLog "Sleep 10 sec."
     , sleep 10000
     , putLog "Slept 10 sec."
@@ -263,45 +292,28 @@ sleepProcedures2 _ =
 -- -- Helper procedures
 
 
-requestInitialTime : Procedure Memory Event
+requestInitialTime : Procedure
 requestInitialTime =
-    Procedure.push <|
-        \_ ->
+    Procedure.push global <|
+        \_ _ ->
             Task.map2 (\zone time -> ( zone, time )) Time.here Time.now
-                |> Task.perform ReceiveInitialTime
+                |> Task.perform (Procedure.publish << ReceiveInitialTime)
 
 
-setPageView : PageView -> Procedure Memory Event
-setPageView page =
-    Procedure.modify <| \memory -> { memory | page = page }
-
-
-putLog : String -> Procedure Memory Event
+putLog : String -> Procedure
 putLog log =
-    Procedure.modify <| \memory -> { memory | log = memory.log ++ log ++ "\n" }
+    Procedure.modify global <| \memory -> { memory | log = memory.log ++ log ++ "\n" }
 
 
-modifyPageHome : (PageHome_ -> PageHome_) -> Procedure Memory Event
-modifyPageHome f =
-    Procedure.modify <|
-        \memory ->
-            case memory.page of
-                PageHome home ->
-                    { memory | page = PageHome <| f home }
-
-                _ ->
-                    memory
-
-
-sleep : Float -> Procedure Memory Event
+sleep : Float -> Procedure
 sleep msec =
-    Procedure.block <|
-        \_ ->
-            [ Procedure.push <|
-                \_ ->
+    Procedure.protected global <|
+        \priv ->
+            [ Procedure.push priv <|
+                \oid _ ->
                     Process.sleep msec
-                        |> Task.perform (\() -> WakeUp)
-            , Procedure.await <|
+                        |> Task.perform (\() -> Procedure.issue oid WakeUp)
+            , Procedure.await priv <|
                 \event _ ->
                     case event of
                         WakeUp ->
@@ -313,3 +325,20 @@ sleep msec =
                             -- Do nothing, and await the next event again.
                             []
             ]
+
+
+setPage :
+    { wrap : ( ObserverId, b ) -> PageView
+    , unwrap : PageView -> Maybe ( ObserverId, b )
+    }
+    -> b
+    -> (Observer Memory b -> List Procedure)
+    -> Procedure
+setPage =
+    Procedure.setVariant
+        (global
+            |> Procedure.dig
+                { get = .page
+                , set = \p memory -> { memory | page = p }
+                }
+        )
